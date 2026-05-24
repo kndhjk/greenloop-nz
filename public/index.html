@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GreenLoop NZ | Student Circular Commerce</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/greenloop-nav.css" />
+    <link rel="stylesheet" href="/greenloop-jd-theme.css" />
+    <link rel="stylesheet" href="/index.css" />
+  </head>
+  <body data-page="home">
+    <header class="topbar shell-topbar">
+      <a class="brand-btn" href="/">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+          <line x1="12" y1="22.08" x2="12" y2="12"></line>
+        </svg>
+        GreenLoop
+      </a>
+      <div class="topbar-actions">
+        <div id="session-badge" class="session-badge hidden"></div>
+        <a class="btn-ghost" data-auth="guest" href="/login">Log in</a>
+        <a class="btn-brand" data-auth="guest" href="/register">Start free</a>
+        <button id="logout-button" class="btn-ghost hidden" data-auth="user" type="button">Log out</button>
+      </div>
+    </header>
+
+    <main class="page">
+      <section class="carousel-wrap" aria-label="Featured marketplace listings">
+        <div class="carousel-track" id="carousel-track">
+          <article class="carousel-slide">
+            <div class="carousel-img" style="background-image:url('https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=1600&q=80')"></div>
+            <div class="carousel-overlay">
+              <span class="carousel-tag">Hot listing</span>
+              <h2>Room reset starts with one good pickup.</h2>
+              <p>GreenLoop helps students move furniture, sell spare items, and book support without the usual marketplace mess.</p>
+              <strong class="carousel-price">Marketplace + services + jobs</strong>
+              <a class="btn-brand" href="/marketplace">Browse listings</a>
+            </div>
+          </article>
+          <article class="carousel-slide">
+            <div class="carousel-img" style="background-image:url('https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1600&q=80')"></div>
+            <div class="carousel-overlay">
+              <span class="carousel-tag">Move-out week</span>
+              <h2>Sell faster with cleaner cards and clearer trust signals.</h2>
+              <p>Condition, pickup windows, price, and seller identity are visible immediately on every listing.</p>
+              <strong class="carousel-price">Fast publish flow</strong>
+              <a class="btn-brand" href="/sell">Post an item</a>
+            </div>
+          </article>
+          <article class="carousel-slide">
+            <div class="carousel-img" style="background-image:url('https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1600&q=80')"></div>
+            <div class="carousel-overlay">
+              <span class="carousel-tag">Student stack</span>
+              <h2>One campus product instead of four disconnected tools.</h2>
+              <p>Market for things, service for logistics, jobs for opportunities. Same account, same flow, cleaner handoff.</p>
+              <strong class="carousel-price">Built for NZ students</strong>
+              <a class="btn-brand" href="/opportunities">See jobs</a>
+            </div>
+          </article>
+        </div>
+        <button id="carousel-prev" class="carousel-arrow carousel-prev" type="button" aria-label="Previous slide">‹</button>
+        <button id="carousel-next" class="carousel-arrow carousel-next" type="button" aria-label="Next slide">›</button>
+        <div id="carousel-dots" class="carousel-dots"></div>
+      </section>
+
+      <section class="jd-categories">
+        <div class="home-section-head">
+          <div>
+            <p class="eyebrow">Browse faster</p>
+            <h2 class="section-title">Jump straight into the right category</h2>
+          </div>
+          <p class="home-section-note">Desktop gets a full browse surface instead of an empty second half. Mobile and tablet keep the same content, just stacked cleanly.</p>
+        </div>
+        <div class="cat-grid">
+          <a class="cat-card" href="/marketplace?cat=furniture">
+            <div class="cat-icon" style="background:linear-gradient(135deg,#ffe6e2,#ffd2cc)">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#e4393c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="10" rx="2"></rect><path d="M6 6V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"></path></svg>
+            </div>
+            <span>Furniture</span>
+            <small>Dorm basics</small>
+          </a>
+          <a class="cat-card" href="/marketplace?cat=desk">
+            <div class="cat-icon" style="background:linear-gradient(135deg,#fff4d9,#ffe8ad)">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18"></path><path d="M5 7v10"></path><path d="M19 7v10"></path><path d="M8 17V9"></path><path d="M16 17V9"></path></svg>
+            </div>
+            <span>Desk</span>
+            <small>Study setups</small>
+          </a>
+          <a class="cat-card" href="/marketplace?cat=chair">
+            <div class="cat-icon" style="background:linear-gradient(135deg,#e8f2ff,#d2e4ff)">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3a77e7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 20h10"></path><path d="M9 16h6"></path><path d="M8 4h8v7a4 4 0 0 1-8 0V4z"></path></svg>
+            </div>
+            <span>Chair</span>
+            <small>Seat and work</small>
+          </a>
+          <a class="cat-card" href="/marketplace?cat=electronics">
+            <div class="cat-icon" style="background:linear-gradient(135deg,#f0ebff,#dbd4ff)">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6d4ce7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+            </div>
+            <span>Electronics</span>
+            <small>Screens and gear</small>
+          </a>
+          <a class="cat-card" href="/marketplace?cat=kitchen">
+            <div class="cat-icon" style="background:linear-gradient(135deg,#dff7eb,#bdf0d6)">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0f9f6e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
+            </div>
+            <span>Kitchen</span>
+            <small>Cook and move</small>
+          </a>
+          <a class="cat-card" href="/services">
+            <div class="cat-icon" style="background:linear-gradient(135deg,#ffe8f3,#ffd3e8)">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#db2777" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            </div>
+            <span>Services</span>
+            <small>Pickup and clean</small>
+          </a>
+        </div>
+      </section>
+
+      <section class="home-band">
+        <article class="home-band-card">
+          <p class="eyebrow">Live overview</p>
+          <h2>Everything a student needs in one place.</h2>
+          <p>Instead of a blank desktop fold, the homepage now carries the product story: what is live, what sells, where the opportunities are, and how the service layer fits in.</p>
+          <div class="band-metrics">
+            <div class="band-metric">
+              <strong id="metric-market-items">--</strong>
+              <span>Listings in marketplace</span>
+            </div>
+            <div class="band-metric">
+              <strong id="metric-seek-jobs">--</strong>
+              <span>Seek jobs synced</span>
+            </div>
+            <div class="band-metric">
+              <strong>24/7</strong>
+              <span>Self-serve publish flow</span>
+            </div>
+          </div>
+        </article>
+        <div class="home-side-panel">
+          <article class="home-mini-card">
+            <strong>Top hiring zone</strong>
+            <p id="metric-top-location">NZ-wide</p>
+          </article>
+          <article class="home-mini-card">
+            <strong>Active employer signal</strong>
+            <p id="metric-top-company">Campus sellers</p>
+          </article>
+          <article class="home-mini-card">
+            <strong>Why this stack works</strong>
+            <ul>
+              <li>Marketplace cards lead with price, condition, and pickup.</li>
+              <li>Bottom dock keeps switching pages easy on mobile.</li>
+              <li>Desktop finally has enough density to feel like a real product.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="home-picks">
+        <div class="home-section-head">
+          <div>
+            <p class="eyebrow">Featured picks</p>
+            <h2 class="section-title">Current marketplace cards</h2>
+          </div>
+          <a class="ghost-link" href="/marketplace">Open full marketplace →</a>
+        </div>
+        <div id="home-featured-items" class="home-featured-grid"></div>
+      </section>
+
+      <section class="home-columns">
+        <article class="home-column-card">
+          <p class="eyebrow">Step 01</p>
+          <h3>Browse with trust first.</h3>
+          <p>Listings surface condition, pickup area, seller status, and price without forcing the user into detail pages just to understand the basics.</p>
+        </article>
+        <article class="home-column-card">
+          <p class="eyebrow">Step 02</p>
+          <h3>Switch flows from the same dock.</h3>
+          <p>Market, Sell, Service, and Jobs live in one bottom navigation so the core pages behave like a real mobile product instead of a desktop site squeezed smaller.</p>
+        </article>
+        <article class="home-column-card">
+          <p class="eyebrow">Step 03</p>
+          <h3>Finish the loop.</h3>
+          <p>Use services for pickup, delivery, cleaning, or donation, then keep the same account open for jobs and campus opportunities.</p>
+        </article>
+      </section>
+
+      <section class="home-cta-band">
+        <article class="home-cta-card">
+          <p class="eyebrow">Built for campus turnover</p>
+          <h2>Better than an empty landing page and better than a cluttered listing wall.</h2>
+          <p>This layout now scales across desktop, tablet, and phone with a fuller story on large screens and cleaner page switching everywhere.</p>
+          <div class="home-cta-actions">
+            <a class="btn-brand" href="/marketplace">See listings</a>
+            <a class="btn-ghost" href="/community">Campus feed</a>
+            <a class="btn-ghost" href="/services">Book a service</a>
+            <a class="btn-ghost" href="/opportunities">Browse jobs</a>
+          </div>
+        </article>
+        <div class="home-cta-stats">
+          <article class="cta-stat">
+            <strong>Cleaner cards</strong>
+            <span>Marketplace content no longer feels cramped or half-hidden.</span>
+          </article>
+          <article class="cta-stat">
+            <strong>Bottom tab flow</strong>
+            <span>Primary section switching stays fixed where thumbs expect it.</span>
+          </article>
+          <article class="cta-stat">
+            <strong>Cross-device fit</strong>
+            <span>Desktop gets density, tablet gets balance, mobile gets focus.</span>
+          </article>
+        </div>
+      </section>
+
+      <div class="page-footer">
+        <span>GreenLoop NZ</span>
+        <span>Student marketplace, services, and jobs in one flow.</span>
+      </div>
+    </main>
+
+    <div id="toast" class="toast"></div>
+    <script src="/app-shell.js"></script>
+    <script src="/index.js"></script>
+  </body>
+</html>

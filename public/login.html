@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login | GreenLoop NZ</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-page="login">
+    <main class="auth-shell">
+      <section class="auth-panel auth-panel-dark">
+        <p class="eyebrow">Welcome back</p>
+        <h1>Login to your student marketplace account.</h1>
+        <p>Track reservations, publish listings, request services, and upgrade your plan from one dashboard.</p>
+      </section>
+      <section class="auth-panel">
+        <a class="brand brand-static" href="/">GreenLoop</a>
+        <h2>Sign in</h2>
+        <form id="login-form" class="stack-form">
+          <input name="email" type="email" placeholder="Student email" required />
+          <input name="password" type="password" placeholder="Password" required />
+          <button type="submit">Login</button>
+        </form>
+        <p class="fine-print"><a href="/forgot-password">Forgot password?</a></p>
+        <p class="fine-print">No account yet? <a href="/register">Create one</a></p>
+      </section>
+    </main>
+
+    <div id="toast" class="toast"></div>
+    <script src="/app-shell.js"></script>
+    <script src="/auth-login.js"></script>
+  </body>
+</html>

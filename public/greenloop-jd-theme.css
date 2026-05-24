@@ -1,0 +1,108 @@
+/* Shared visual upgrades layered on top of styles.css */
+
+:root {
+  --brand: #e4393c;
+  --brand-dark: #c33235;
+  --brand-soft: #fff3f2;
+  --surface: rgba(255, 255, 255, 0.92);
+  --surface-2: rgba(247, 247, 247, 0.94);
+  --ink: #232323;
+  --muted: #6a6a6a;
+  --line: #ece5dc;
+  --shadow: 0 24px 48px rgba(40, 36, 34, 0.08);
+}
+
+body {
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top left, rgba(228, 57, 60, 0.10), transparent 24%),
+    radial-gradient(circle at 88% 14%, rgba(246, 197, 86, 0.14), transparent 20%),
+    linear-gradient(180deg, #fff7f1 0%, #fffdf8 38%, #f8f8f6 100%);
+}
+
+.page-hero,
+.hero,
+.feature-card,
+.sidebar-card,
+.main-card,
+.mini-stat,
+.stat-card,
+.metric-card {
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  background: var(--surface);
+}
+
+.eyebrow {
+  color: #cb4d1b;
+  font-weight: 800;
+}
+
+.ghost-link:hover,
+.listing-head h3 a:hover,
+.listing-seller-link:hover {
+  color: var(--brand);
+}
+
+.listing-card:hover,
+.mini-listing-card:hover {
+  border-color: rgba(228, 57, 60, 0.24);
+  box-shadow: 0 18px 32px rgba(228, 57, 60, 0.12);
+}
+
+.meta-pill {
+  background: #fbf7f1;
+}
+
+.info-box {
+  background: linear-gradient(145deg, #fff6ef, #fffdf8);
+}
+
+.floating-plus-btn {
+  background: linear-gradient(135deg, #e4393c, #c33235) !important;
+  box-shadow: 0 16px 32px rgba(228, 57, 60, 0.3) !important;
+}
+
+.floating-plus-btn:hover {
+  box-shadow: 0 20px 40px rgba(228, 57, 60, 0.38) !important;
+}
+
+.home-section-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.home-section-head h2 {
+  margin-bottom: 0;
+}
+
+.home-section-note {
+  max-width: 560px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.page-footer {
+  margin-top: 28px;
+  padding: 20px 0 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  .home-section-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .page-footer {
+    padding-bottom: 18px;
+  }
+}

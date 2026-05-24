@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin | GreenLoop NZ</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-page="admin">
+    <header class="topbar">
+      <a class="brand" href="/">GreenLoop</a>
+      <nav class="nav">
+        <a href="/marketplace">Marketplace</a>
+        <a href="/community">Community</a>
+        <a href="/chat">Chat</a>
+        <a id="admin-link" href="/admin">Admin</a>
+      </nav>
+      <div class="topbar-actions">
+        <div id="session-badge" class="session-badge"></div>
+        <button id="logout-button" class="ghost-button" type="button">Logout</button>
+      </div>
+    </header>
+
+    <main class="page">
+      <section class="page-hero">
+        <div>
+          <p class="eyebrow">Admin control</p>
+          <h1>Manage users and see what the product is actually doing.</h1>
+          <p class="lede">This panel covers user CRUD, pending verification review, and an activity stream for login, posting, selling, and chat behavior.</p>
+        </div>
+        <div id="admin-stats" class="chat-hub-hero-grid"></div>
+      </section>
+
+      <section class="content-grid">
+        <aside class="sidebar-card">
+          <p class="eyebrow">Create or update user</p>
+          <form id="admin-user-form" class="stack-form">
+            <input id="admin-user-full-name" placeholder="Full name" required />
+            <input id="admin-user-email" type="email" placeholder="Email" required />
+            <input id="admin-user-password" type="password" placeholder="Password (create only)" />
+            <input id="admin-user-school" placeholder="School name" value="University of Auckland" />
+            <input id="admin-user-student-id" placeholder="Student ID" />
+            <select id="admin-user-verification">
+              <option value="verified">Verified</option>
+              <option value="pending">Pending</option>
+              <option value="rejected">Rejected</option>
+            </select>
+            <label class="checkbox-row"><input id="admin-user-premium" type="checkbox" /> Premium account</label>
+            <div class="cta-row">
+              <button id="admin-user-submit" type="submit">Create user</button>
+              <button id="admin-user-cancel" class="ghost-button hidden" type="button">Cancel edit</button>
+            </div>
+          </form>
+        </aside>
+
+        <section class="main-card admin-main">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Users</p>
+              <h2>User accounts</h2>
+            </div>
+            <input id="admin-user-search" class="admin-search" placeholder="Search by name, email, or student id" />
+          </div>
+          <div id="admin-user-list" class="data-list"></div>
+
+          <div class="section-head admin-section-gap">
+            <div>
+              <p class="eyebrow">Pending verification</p>
+              <h2>Queue</h2>
+            </div>
+          </div>
+          <div id="admin-verification-list" class="data-list"></div>
+
+          <div class="section-head admin-section-gap">
+            <div>
+              <p class="eyebrow">Behavior tracking</p>
+              <h2>Recent activity</h2>
+            </div>
+          </div>
+          <div id="admin-activity-list" class="data-list"></div>
+        </section>
+      </section>
+    </main>
+
+    <div id="toast" class="toast"></div>
+    <script src="/app-shell.js"></script>
+    <script src="/admin.js"></script>
+  </body>
+</html>

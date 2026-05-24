@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Verification Queue | GreenLoop NZ</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-page="admin-verifications">
+    <header class="topbar">
+      <a class="brand" href="/">GreenLoop</a>
+      <nav class="nav">
+        <a href="/marketplace">Marketplace</a>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/services">Services</a>
+        <a id="admin-link" href="/admin/verifications">Verification Queue</a>
+      </nav>
+      <div class="topbar-actions">
+        <div id="session-badge" class="session-badge"></div>
+        <button id="logout-button" class="ghost-button" type="button">Logout</button>
+      </div>
+    </header>
+    <main class="page">
+      <section class="page-hero compact">
+        <div>
+          <p class="eyebrow">Admin queue</p>
+          <h1>Review pending student verification requests.</h1>
+        </div>
+      </section>
+      <section class="content-grid single">
+        <div class="main-card">
+          <div id="verification-list" class="data-list"></div>
+        </div>
+      </section>
+    </main>
+    <div id="toast" class="toast"></div>
+    <script src="/app-shell.js"></script>
+    <script src="/admin-verifications.js"></script>
+  </body>
+</html>

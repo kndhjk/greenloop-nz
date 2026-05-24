@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sell | GreenLoop NZ</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/greenloop-nav.css" />
+    <link rel="stylesheet" href="/greenloop-jd-theme.css" />
+  </head>
+  <body data-page="sell">
+    <header class="topbar shell-topbar">
+      <a class="brand-btn" href="/">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+          <line x1="12" y1="22.08" x2="12" y2="12"></line>
+        </svg>
+        GreenLoop
+      </a>
+      <div class="topbar-actions">
+        <div id="session-badge" class="session-badge hidden"></div>
+        <a class="btn-ghost" data-auth="guest" href="/login">Log in</a>
+        <a class="btn-brand" data-auth="guest" href="/register">Start free</a>
+        <button id="logout-button" class="btn-ghost hidden" data-auth="user" type="button">Log out</button>
+      </div>
+    </header>
+
+    <main class="page">
+      <section class="page-hero compact">
+        <div>
+          <p class="eyebrow">Seller workspace</p>
+          <h1>Publish listings with the details a buyer actually needs.</h1>
+          <p class="lede">Bottom dock handles the section switching. This page stays focused on one job: creating a good listing fast.</p>
+        </div>
+      </section>
+
+      <section class="content-grid single">
+        <div class="main-card">
+          <form id="publish-form" class="stack-form">
+            <div class="two-col">
+              <input name="title" placeholder="Product name" required />
+              <input name="location" placeholder="Pickup area" required />
+            </div>
+            <textarea name="description" placeholder="Condition, defects, pickup instructions, context..." required></textarea>
+            <div class="two-col">
+              <select name="category" required>
+                <option value="">Category</option>
+                <option value="furniture">Furniture</option>
+                <option value="desk">Desk</option>
+                <option value="chair">Chair</option>
+                <option value="decor">Decor</option>
+                <option value="electronics">Electronics</option>
+                <option value="kitchen">Kitchen</option>
+                <option value="storage">Storage</option>
+              </select>
+              <select name="conditionStatus" required>
+                <option value="">Condition</option>
+                <option value="new">New</option>
+                <option value="like new">Like new</option>
+                <option value="good">Good</option>
+                <option value="fair">Fair</option>
+              </select>
+            </div>
+            <div class="two-col">
+              <input name="price" type="number" min="0" step="0.01" placeholder="Price (NZD)" required />
+              <input name="pickupWindows" placeholder="Pickup windows" />
+            </div>
+            <input name="imageUrl" placeholder="Primary image URL or upload below" />
+            <div class="two-col">
+              <label class="upload">
+                <span>Upload photo</span>
+                <input id="item-upload" type="file" accept="image/*" />
+              </label>
+              <input name="deliveryOptions" placeholder="Delivery options: standard,budget" />
+            </div>
+            <label class="checkbox-row">
+              <input name="donationAvailable" type="checkbox" />
+              <span>This item can be donated if unsold.</span>
+            </label>
+            <button type="submit">Publish listing</button>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast"></div>
+    <script src="/app-shell.js"></script>
+    <script src="/sell.js?v=20260524b"></script>
+  </body>
+</html>

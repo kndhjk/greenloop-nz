@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Community | GreenLoop NZ</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/greenloop-nav.css" />
+  </head>
+  <body data-page="community">
+    <header class="topbar">
+      <a class="brand" href="/">GreenLoop</a>
+      <nav class="nav">
+        <a href="/marketplace">Marketplace</a>
+        <a href="/community">Community</a>
+        <a href="/chat">Chat</a>
+        <a id="admin-link" class="hidden" href="/admin">Admin</a>
+      </nav>
+      <div class="topbar-actions">
+        <div id="session-badge" class="session-badge"></div>
+        <a class="btn-ghost" data-auth="guest" href="/login">Log in</a>
+        <a class="btn-brand" data-auth="guest" href="/register">Start free</a>
+        <button id="logout-button" class="btn-ghost hidden" data-auth="user" type="button">Log out</button>
+      </div>
+    </header>
+
+    <main class="page">
+      <section class="page-hero community-hero">
+        <div>
+          <p class="eyebrow">Campus feed</p>
+          <h1>Post like Twitter. Connect like GreenLoop.</h1>
+          <p class="lede">
+            Ask for recommendations, post move-out updates, share spare-item drops, or find people around the same part of campus. This is the
+            social layer sitting on top of market, services, and chat.
+          </p>
+          <div class="cta-row">
+            <a class="button" href="#community-compose">Write a post</a>
+            <a class="ghost-button" href="/chat">Open chat</a>
+          </div>
+        </div>
+        <div class="community-hero-stats">
+          <article class="mini-stat">
+            <strong id="community-stat-posts">0</strong>
+            <span>recent campus posts</span>
+          </article>
+          <article class="mini-stat">
+            <strong>Student-only</strong>
+            <span>same UoA verification layer as the rest of the product</span>
+          </article>
+          <article class="mini-stat">
+            <strong>Market-linked</strong>
+            <span>posts can drive people into listings, sellers, and direct chat</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="content-grid">
+        <aside class="sidebar-card community-sidebar">
+          <p class="eyebrow">Use cases</p>
+          <div class="community-tip-list">
+            <div class="community-tip">
+              <strong>Move-out blast</strong>
+              <span>“Leaving Grafton on Friday. Desk and lamp available today.”</span>
+            </div>
+            <div class="community-tip">
+              <strong>Service trust</strong>
+              <span>“Anyone used GreenLoop pickup for a couch? Need a quick review.”</span>
+            </div>
+            <div class="community-tip">
+              <strong>Campus ask</strong>
+              <span>“Looking for a study chair near City Campus before Monday.”</span>
+            </div>
+          </div>
+        </aside>
+
+        <section class="main-card community-main">
+          <form id="community-compose" class="community-compose">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">New post</p>
+                <h2>Say something useful.</h2>
+              </div>
+            </div>
+            <div class="two-col">
+              <input id="post-topic" maxlength="120" placeholder="Topic: moving, furniture, service recs, flat hunt..." />
+              <input id="post-image" placeholder="Optional image URL" />
+            </div>
+            <textarea id="post-body" maxlength="3000" placeholder="What’s happening? Keep it campus-relevant and worth replying to."></textarea>
+            <div class="cta-row">
+              <button type="submit">Post to community</button>
+            </div>
+          </form>
+
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Live feed</p>
+              <h2>Recent posts</h2>
+            </div>
+          </div>
+          <div id="community-feed" class="community-feed"></div>
+        </section>
+      </section>
+    </main>
+
+    <div id="toast" class="toast"></div>
+    <script src="/app-shell.js"></script>
+    <script src="/community.js"></script>
+  </body>
+</html>

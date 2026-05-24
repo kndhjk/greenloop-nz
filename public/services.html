@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Services | GreenLoop NZ</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/greenloop-nav.css" />
+    <link rel="stylesheet" href="/greenloop-jd-theme.css" />
+  </head>
+  <body data-page="services">
+    <header class="topbar shell-topbar">
+      <a class="brand-btn" href="/">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+          <line x1="12" y1="22.08" x2="12" y2="12"></line>
+        </svg>
+        GreenLoop
+      </a>
+      <div class="topbar-actions">
+        <div id="session-badge" class="session-badge hidden"></div>
+        <a class="btn-ghost" data-auth="guest" href="/login">Log in</a>
+        <a class="btn-brand" data-auth="guest" href="/register">Start free</a>
+        <button id="logout-button" class="btn-ghost hidden" data-auth="user" type="button">Log out</button>
+      </div>
+    </header>
+
+    <main class="page">
+      <section class="page-hero compact">
+        <div>
+          <p class="eyebrow">Operations</p>
+          <h1>Move. Clean. Reset.</h1>
+          <p class="lede">Pickup, delivery, cleaning, repair, and donation stay close to the marketplace without wasting header space on tabs.</p>
+        </div>
+        <div class="hero-inline-visual photo-service-inline"></div>
+      </section>
+
+      <section class="section-grid">
+        <article class="main-card service-card pickup-card">
+          <div class="service-icon"><span>⌂</span></div>
+          <h2>Pickup</h2>
+          <form id="reservation-form" class="stack-form">
+            <input name="itemId" type="number" placeholder="Item ID" required />
+            <input name="pickupTime" type="datetime-local" required />
+            <textarea name="note" placeholder="Pickup note"></textarea>
+            <button class="icon-button" type="submit"><span>→</span>Reserve</button>
+          </form>
+        </article>
+        <article class="main-card service-card delivery-card">
+          <div class="service-icon"><span>→</span></div>
+          <h2>Delivery</h2>
+          <form id="delivery-form" class="stack-form">
+            <input name="itemId" type="number" placeholder="Item ID (optional)" />
+            <select name="deliveryType" required>
+              <option value="">Delivery type</option>
+              <option value="standard">Standard delivery</option>
+              <option value="budget">Budget delivery</option>
+            </select>
+            <input name="fromLocation" placeholder="From" required />
+            <input name="toLocation" placeholder="To" required />
+            <textarea name="notes" placeholder="Delivery notes"></textarea>
+            <button class="icon-button" type="submit"><span>→</span>Send</button>
+          </form>
+        </article>
+        <article class="main-card service-card clean-card">
+          <div class="service-icon"><span>✦</span></div>
+          <h2>Clean / Repair</h2>
+          <form id="service-form" class="stack-form">
+            <input name="itemId" type="number" placeholder="Item ID (optional)" />
+            <select name="serviceType" required>
+              <option value="">Service type</option>
+              <option value="cleaning">Cleaning</option>
+              <option value="repair">Repair</option>
+            </select>
+            <textarea name="notes" placeholder="What needs work?"></textarea>
+            <button class="icon-button" type="submit"><span>→</span>Book</button>
+          </form>
+        </article>
+        <article class="main-card service-card donate-card">
+          <div class="service-icon"><span>♡</span></div>
+          <h2>Donate</h2>
+          <form id="donation-form" class="stack-form">
+            <input name="itemId" type="number" placeholder="Item ID (optional)" />
+            <input name="orgName" placeholder="Partner organization" required />
+            <textarea name="notes" placeholder="Donation details"></textarea>
+            <button class="icon-button" type="submit"><span>→</span>Donate</button>
+          </form>
+        </article>
+      </section>
+
+      <section class="content-grid single">
+        <article class="main-card room-card">
+          <div class="room-card-head">
+            <div>
+              <p class="eyebrow">AI Room Design</p>
+              <h2>See it before you haul it home.</h2>
+            </div>
+            <div class="room-preview photo-room-preview"></div>
+          </div>
+          <form id="room-form" class="stack-form">
+            <input name="roomImageUrl" placeholder="Room photo URL or upload below" />
+            <label class="upload">
+              <span>Upload room photo</span>
+              <input id="room-upload" type="file" accept="image/*" />
+            </label>
+            <div class="two-col">
+              <input name="stylePreference" placeholder="Style: minimal, study-first..." />
+              <input name="budget" type="number" min="0" step="0.01" placeholder="Budget (NZD)" />
+            </div>
+            <textarea name="notes" placeholder="Room goals or constraints"></textarea>
+            <button class="icon-button" type="submit"><span>✦</span>Generate</button>
+          </form>
+          <div id="room-output" class="info-box"></div>
+        </article>
+      </section>
+    </main>
+
+    <div id="toast" class="toast"></div>
+    <script src="/app-shell.js"></script>
+    <script src="/services.js"></script>
+  </body>
+</html>

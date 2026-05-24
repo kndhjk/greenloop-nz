@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jobs — GreenLoop NZ</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/greenloop-nav.css" />
+  <link rel="stylesheet" href="/greenloop-jd-theme.css" />
+  <style>
+    /* ── Jobs page ── */
+    .jobs-hero {
+      background: linear-gradient(135deg, #fff5f5, #fff);
+      border-bottom: 2px solid #e4393c;
+      padding: 40px 32px 32px;
+    }
+    .jobs-hero h1 { font-size: 32px; font-weight: 900; color: #333; letter-spacing: -0.02em; margin: 0 0 8px; }
+    .jobs-hero p { color: #666; font-size: 14px; margin: 0; }
+    .stats-row { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 16px; }
+    .stat-badge strong { font-size: 20px; font-weight: 900; color: #e4393c; }
+    .stat-badge span { font-size: 11px; color: #999; font-weight: 600; text-transform: uppercase; }
+
+    /* Search bar */
+    .search-bar {
+      display: flex;
+      gap: 10px;
+      padding: 18px 32px;
+      background: #fff;
+      border-bottom: 1.5px solid #e8e8e8;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .search-bar input, .search-bar select {
+      border: 1.5px solid #e8e8e8;
+      border-radius: 999px;
+      padding: 9px 16px;
+      font: inherit;
+      font-size: 14px;
+      outline: none;
+      transition: border-color .2s;
+      background: #fafafa;
+    }
+    .search-bar input:focus, .search-bar select:focus { border-color: #e4393c; background: #fff; }
+    .search-bar input.keyword-input { flex: 1; min-width: 160px; }
+    .search-btn {
+      background: linear-gradient(135deg, #e4393c, #c33235);
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      padding: 9px 22px;
+      font-weight: 800;
+      font-size: 14px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(228,57,60,0.3);
+      transition: all .2s;
+      white-space: nowrap;
+    }
+    .search-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(228,57,60,0.4); }
+
+    /* Jobs main */
+    .jobs-main { padding: 20px 32px 60px; }
+    .results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .results-header h2 { font-size: 18px; font-weight: 900; color: #333; margin: 0; }
+    .results-count { font-size: 13px; color: #999; font-weight: 600; }
+
+    /* Job cards grid */
+    .jobs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+    .job-card {
+      background: #fff;
+      border: 1.5px solid #e8e8e8;
+      border-radius: 18px;
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      text-decoration: none;
+      color: inherit;
+      transition: all .22s ease;
+    }
+    .job-card:hover {
+      border-color: #e4393c;
+      box-shadow: 0 6px 20px rgba(228,57,60,0.12);
+      transform: translateY(-3px);
+    }
+    .job-card-header { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+    .job-card-header h3 { margin: 0; font-size: 15px; font-weight: 800; color: #222; line-height: 1.3; flex: 1; }
+    .job-card-salary { font-size: 14px; font-weight: 900; color: #e4393c; white-space: nowrap; }
+    .job-card-company { font-size: 13px; font-weight: 700; color: #555; }
+    .job-card-meta { display: flex; flex-wrap: wrap; gap: 5px; }
+    .meta-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 4px 9px; border-radius: 999px;
+      font-size: 11px; font-weight: 700;
+    }
+    .meta-tag.loc { background: #e8f4fd; color: #1a73e8; }
+    .meta-tag.ct { background: #fff3e0; color: #e65100; }
+    .meta-tag.ft { background: #e8f5e9; color: #2e7d32; }
+    .meta-tag.pt { background: #f3e5f5; color: #7b1fa2; }
+    .meta-tag.cs { background: #fff8e1; color: #f57f17; }
+    .meta-tag.fea { background: #fff3e0; color: #e4393c; }
+    .job-card-desc { font-size: 12px; color: #888; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .job-card-footer { display: flex; justify-content: space-between; align-items: center; }
+    .job-card-date { font-size: 11px; color: #bbb; font-weight: 600; }
+    .apply-link { font-size: 12px; font-weight: 800; color: #e4393c; text-decoration: none; }
+    .apply-link:hover { text-decoration: underline; }
+
+    /* Section divider */
+    .section-divider { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; }
+    .section-divider h2 { font-size: 17px; font-weight: 900; color: #333; white-space: nowrap; margin: 0; }
+    .section-divider::after { content: ''; flex: 1; height: 1.5px; background: #e8e8e8; }
+
+    /* Loading */
+    .loading-state { text-align: center; padding: 50px 20px; color: #999; }
+    .spinner { display: inline-block; width: 30px; height: 30px; border: 3px solid #e8e8e8; border-top-color: #e4393c; border-radius: 50%; animation: sp 0.8s linear infinite; margin-bottom: 10px; }
+    @keyframes sp { to { transform: rotate(360deg); } }
+
+    .empty-state { text-align: center; padding: 50px 20px; }
+    .empty-state h3 { font-size: 18px; font-weight: 900; color: #333; margin: 0 0 8px; }
+    .empty-state p { color: #999; font-size: 14px; margin: 0; }
+
+    /* GL opportunities */
+    .gl-opportunities { display: grid; gap: 12px; margin-bottom: 28px; }
+    .gl-card { background: #fff; border: 1.5px solid #e8e8e8; border-radius: 16px; padding: 16px 20px; display: flex; justify-content: space-between; gap: 16px; transition: all .2s; }
+    .gl-card:hover { border-color: #e4393c; transform: translateY(-2px); box-shadow: 0 4px 16px rgba(228,57,60,0.10); }
+    .gl-card h3 { margin: 0 0 6px; font-size: 15px; font-weight: 800; color: #222; }
+    .gl-card p { margin: 0 0 4px; font-size: 13px; color: #555; }
+    .gl-card small { font-size: 11px; color: #999; }
+    .apply-btn { background: #e4393c; color: #fff; padding: 9px 18px; border-radius: 999px; font-size: 13px; font-weight: 800; white-space: nowrap; text-decoration: none; align-self: flex-start; flex-shrink: 0; }
+    .apply-btn:hover { background: #c33235; }
+
+    @media (max-width: 900px) {
+      .jobs-grid { grid-template-columns: 1fr; }
+      .search-bar { padding: 14px 16px; }
+      .jobs-main { padding: 16px 16px 40px; }
+      .jobs-hero { padding: 28px 16px 20px; }
+    }
+  </style>
+</head>
+<body data-page="opportunities">
+
+  <header class="topbar shell-topbar">
+    <a class="brand-btn" href="/">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+      GreenLoop
+    </a>
+    <div class="topbar-actions">
+      <div id="session-badge" class="session-badge hidden"></div>
+      <a class="btn-ghost" data-auth="guest" href="/login">Log in</a>
+      <a class="btn-brand" data-auth="guest" href="/register">Start free</a>
+      <button id="logout-button" class="btn-ghost hidden" data-auth="user" type="button">Log out</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="jobs-hero">
+      <p style="color:#e4393c;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;margin:0 0 6px">Student work & opportunities</p>
+      <h1>Find your next role</h1>
+      <p>Student opportunities from campus organizations + all NZ jobs from Seek.</p>
+      <div class="stats-row">
+        <div class="stat-badge"><strong id="gl-count">—</strong><span>GreenLoop listings</span></div>
+        <div class="stat-badge"><strong id="seek-count">—</strong><span>Seek NZ jobs</span></div>
+      </div>
+    </section>
+
+    <!-- GreenLoop Opportunities -->
+    <section class="jobs-main" style="padding-top:20px">
+      <div class="section-divider"><h2>🎓 Campus Opportunities</h2></div>
+      <div id="gl-opportunities" class="gl-opportunities">
+        <div class="loading-state"><div class="spinner"></div><p>Loading...</p></div>
+      </div>
+    </section>
+
+    <!-- Seek Jobs -->
+    <section class="jobs-main">
+      <div class="section-divider"><h2>🇳🇿 All NZ Jobs (Seek)</h2></div>
+
+      <div class="search-bar">
+        <input class="keyword-input" id="search-keyword" type="text" placeholder="Job title, keyword..." />
+        <select id="search-location">
+          <option value="">All locations</option>
+          <option value="Auckland">Auckland</option>
+          <option value="Wellington">Wellington</option>
+          <option value="Hamilton">Hamilton</option>
+          <option value="Christchurch">Christchurch</option>
+        </select>
+        <select id="search-type">
+          <option value="">All types</option>
+          <option value="full_time">Full time</option>
+          <option value="part_time">Part time</option>
+          <option value="contract">Contract</option>
+          <option value="casual">Casual</option>
+        </select>
+        <button class="search-btn" id="search-btn">🔍 Search</button>
+        <button class="search-btn" style="background:#888" id="reset-btn">Reset</button>
+      </div>
+
+      <div class="results-header" style="margin-top:16px">
+        <h2>Results</h2>
+        <span class="results-count" id="results-count"></span>
+      </div>
+
+      <div id="seek-jobs" class="jobs-grid">
+        <div class="loading-state"><div class="spinner"></div><p>Loading jobs...</p></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <script src="/app-shell.js"></script>
+  <script>
+  (function() {
+    const $ = s => document.querySelector(s);
+    const notify = (msg, isError = false) => {
+      if (window.GreenLoop?.showToast) {
+        GreenLoop.showToast(msg, isError);
+      }
+    };
+
+    // ── GreenLoop opportunities ──
+    async function loadGL() {
+      try {
+        const data = await fetch('/api/opportunities').then(r => r.json()).catch(() => ({}));
+        const list = data.opportunities || [];
+        const el = $('#gl-opportunities');
+        const count = $('#gl-count');
+        if (count) count.textContent = list.length;
+
+        if (!list.length) {
+          el.innerHTML = '<div class="empty-state"><h3>No listings yet</h3><p><a href="/register" style="color:#e4393c">Post the first opportunity →</a></p></div>';
+          return;
+        }
+        el.innerHTML = list.map(item => `
+          <article class="gl-card">
+            <div style="flex:1">
+              <h3>${item.title || 'Untitled'}</h3>
+              <p>${item.org_name || ''} · ${item.opportunity_type || ''} · ${item.location || ''}</p>
+              <p style="font-size:12px;color:#888;margin:4px 0">${(item.summary || '').slice(0,100)}</p>
+              ${(item.skills||[]).length ? '<p style="font-size:11px;color:#999">Skills: ' + item.skills.join(', ') + '</p>' : ''}
+            </div>
+            ${item.apply_url ? `<a href="${item.apply_url}" target="_blank" class="apply-btn">Apply</a>` : ''}
+          </article>
+        `).join('');
+      } catch(e) {
+        $('#gl-opportunities').innerHTML = '<p style="color:#999;text-align:center;padding:20px">Could not load.</p>';
+      }
+    }
+
+    // ── Seek jobs ──
+    function renderJobs(jobs) {
+      const grid = $('#seek-jobs');
+      const count = $('#results-count');
+      const seekCount = $('#seek-count');
+      if (!jobs.length) {
+        grid.innerHTML = '<div class="empty-state"><h3>No jobs found</h3><p>Try different keywords.</p></div>';
+        if (count) count.textContent = '0 jobs';
+        return;
+      }
+      if (seekCount) seekCount.textContent = jobs.length;
+      if (count) count.textContent = jobs.length + ' jobs';
+
+      const wtMap = { full_time: ['ft','Full time'], part_time: ['pt','Part time'], contract: ['ct','Contract'], casual: ['cs','Casual'] };
+      grid.innerHTML = jobs.map(j => {
+        const [cls, lbl] = wtMap[j.workType] || ['ft','Full time'];
+        const date = j.listedAt ? new Date(j.listedAt).toLocaleDateString('en-NZ',{day:'numeric',month:'short'}) : '';
+        return `<a class="job-card" href="${j.url||'#'}" target="_blank" rel="noopener">
+          <div class="job-card-header">
+            <h3>${j.title||'Untitled'}</h3>
+            ${j.salary ? `<strong class="job-card-salary">${j.salary}</strong>` : ''}
+          </div>
+          <div class="job-card-company">${j.company||'Unknown'}</div>
+          <div class="job-card-meta">
+            <span class="meta-tag loc">📍 ${j.location||'NZ'}</span>
+            <span class="meta-tag ${cls}">${lbl}</span>
+            ${j.featured ? '<span class="meta-tag fea">★ Featured</span>' : ''}
+          </div>
+          ${j.description ? `<p class="job-card-desc">${j.description}</p>` : ''}
+          <div class="job-card-footer">
+            <span class="job-card-date">${date}</span>
+            <span class="apply-link">Apply →</span>
+          </div>
+        </a>`;
+      }).join('');
+    }
+
+    async function loadJobs(params) {
+      const grid = $('#seek-jobs');
+      grid.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Searching...</p></div>';
+      try {
+        const qs = new URLSearchParams({ limit: 100, ...params }).toString();
+        const resp = await fetch('/api/jobs?' + qs);
+        if (!resp.ok) throw new Error('API error');
+        const data = await resp.json();
+        renderJobs(data.jobs || []);
+      } catch(e) {
+        grid.innerHTML = '<div class="empty-state"><h3>Failed to load</h3><p>Could not reach jobs API.</p></div>';
+      }
+    }
+
+    async function triggerJobRefresh() {
+      const response = await fetch('/api/jobs/refresh', { method: 'POST' });
+      if (!response.ok) {
+        throw new Error('Could not start job refresh.');
+      }
+      return response.json();
+    }
+
+    function doSearch() {
+      const p = {};
+      const k = $('#search-keyword').value.trim();
+      const l = $('#search-location').value;
+      const t = $('#search-type').value;
+      if (k) p.q = k;
+      if (l) p.location = l;
+      if (t) p.type = t;
+      loadJobs(p);
+    }
+
+    $('#search-btn').addEventListener('click', doSearch);
+    $('#search-keyword').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+    $('#reset-btn').addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      $('#search-keyword').value = '';
+      $('#search-location').value = '';
+      $('#search-type').value = '';
+      button.disabled = true;
+      button.textContent = 'Refreshing...';
+      try {
+        const result = await triggerJobRefresh();
+        notify(result.started ? 'Job refresh started.' : 'Refresh already running.');
+      } catch (error) {
+        notify(error.message || 'Failed to start refresh.', true);
+      } finally {
+        await loadJobs({});
+        setTimeout(() => loadJobs({}), 4000);
+        button.disabled = false;
+        button.textContent = 'Reset';
+      }
+    });
+
+    loadGL();
+    loadJobs({});
+    if (window.GreenLoop) GreenLoop.bootstrap();
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard | GreenLoop NZ</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-page="dashboard">
+    <header class="topbar">
+      <a class="brand" href="/">GreenLoop</a>
+      <nav class="nav">
+        <a href="/marketplace">Marketplace</a>
+        <a href="/sell">Sell</a>
+        <a href="/services">Services</a>
+        <a href="/opportunities">Opportunities</a>
+      </nav>
+      <div class="topbar-actions">
+        <div id="session-badge" class="session-badge"></div>
+        <button id="logout-button" class="ghost-button" type="button">Logout</button>
+      </div>
+    </header>
+
+    <main class="page">
+      <section class="page-hero compact">
+        <div>
+          <p class="eyebrow">Dashboard</p>
+          <h1>Operate your account like a real marketplace seller or buyer.</h1>
+        </div>
+      </section>
+
+      <section class="stat-grid" id="stats"></section>
+      <section class="content-grid single">
+        <div class="main-card">
+          <div class="section-head">
+            <h2>Recent reservations</h2>
+            <a class="ghost-link" href="/marketplace">Browse more</a>
+          </div>
+          <div id="reservations" class="data-list"></div>
+        </div>
+        <div class="main-card">
+          <div class="section-head">
+            <h2>Notifications</h2>
+            <a class="ghost-link" href="/services">Manage services</a>
+          </div>
+          <div id="notifications" class="data-list"></div>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast"></div>
+    <script src="/app-shell.js"></script>
+    <script src="/dashboard.js"></script>
+  </body>
+</html>

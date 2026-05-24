@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Register | GreenLoop NZ</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-page="register">
+    <main class="auth-shell">
+      <section class="auth-panel auth-panel-dark">
+        <p class="eyebrow">Verified campus onboarding</p>
+        <h1>Register with your UoA email, verify by code, and start with a real face.</h1>
+        <p>Only <strong>@aucklanduni.ac.nz</strong> and <strong>@auckland.ac.nz</strong> emails are accepted. A six-digit code is sent before the account is created.</p>
+      </section>
+      <section class="auth-panel">
+        <a class="brand brand-static" href="/">GreenLoop</a>
+        <h2>Create account</h2>
+        <div class="auth-form-shell">
+          <form id="register-form" class="stack-form">
+            <input name="fullName" placeholder="Full name" required />
+            <input name="email" type="email" placeholder="UoA email" required />
+            <input name="schoolName" placeholder="University / school" value="University of Auckland" required />
+            <input name="studentId" placeholder="Student ID" required />
+            <input name="password" type="password" placeholder="Password" required />
+            <input name="confirmPassword" type="password" placeholder="Confirm password" required />
+
+            <section class="avatar-builder">
+              <div>
+                <h3>Choose avatar</h3>
+                <p class="fine-print">Upload any image, drag to position it, then adjust zoom. The preview is the final circular avatar.</p>
+              </div>
+              <label class="upload">
+                <span>Upload avatar image</span>
+                <input id="avatar-input" type="file" accept="image/*" />
+              </label>
+              <div class="avatar-stage-wrap">
+                <div id="avatar-stage" class="avatar-stage">
+                  <img id="avatar-image" class="hidden" alt="Avatar crop source" />
+                </div>
+                <div class="avatar-preview">
+                  <canvas id="avatar-preview-canvas" width="320" height="320"></canvas>
+                </div>
+              </div>
+              <div class="avatar-controls">
+                <label>
+                  Zoom
+                  <input id="avatar-zoom" type="range" min="1" max="3" step="0.01" value="1" />
+                </label>
+              </div>
+            </section>
+
+            <label class="checkbox-row">
+              <input name="terms" type="checkbox" required />
+              <span>I agree to student verification and marketplace conduct rules.</span>
+            </label>
+            <button type="submit">Send verification code</button>
+          </form>
+
+          <section id="verify-panel" class="verify-panel hidden">
+            <div>
+              <h3>Enter verification code</h3>
+              <p class="fine-print">We sent a six-digit code to <strong id="verify-email-label"></strong>. Your account is created only after this step succeeds.</p>
+            </div>
+            <div class="verify-code-row">
+              <input id="verification-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code" />
+              <button id="verify-submit" type="button">Verify and register</button>
+            </div>
+            <button id="verify-resend" class="ghost-button" type="button">Resend code</button>
+          </section>
+        </div>
+        <p class="fine-print">Already registered? <a href="/login">Login here</a></p>
+      </section>
+    </main>
+
+    <div id="toast" class="toast"></div>
+    <script src="/app-shell.js"></script>
+    <script src="/auth-register.js"></script>
+  </body>
+</html>

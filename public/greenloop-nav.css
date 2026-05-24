@@ -1,0 +1,317 @@
+/* Shared shell chrome for GreenLoop main pages */
+
+.topbar.shell-topbar {
+  max-width: 1380px;
+  margin: 0 auto;
+  padding: 16px 20px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.88));
+  backdrop-filter: blur(18px);
+}
+
+.brand-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px 10px 10px;
+  border-radius: 18px;
+  border: 1px solid rgba(228, 57, 60, 0.14);
+  background: rgba(255, 255, 255, 0.92);
+  color: #e4393c;
+  text-decoration: none;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  box-shadow: 0 10px 24px rgba(228, 57, 60, 0.08);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.brand-btn:hover {
+  transform: translateY(-2px);
+  border-color: rgba(228, 57, 60, 0.32);
+  box-shadow: 0 14px 28px rgba(228, 57, 60, 0.14);
+}
+
+.brand-btn svg {
+  flex-shrink: 0;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.topbar-actions .session-badge {
+  min-width: 0;
+  max-width: 210px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(250, 250, 250, 0.94);
+  border: 1px solid #ececec;
+}
+
+.topbar-actions .session-badge strong,
+.topbar-actions .session-badge span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-badge-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.session-avatar-wrap {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
+.session-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.session-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e4393c, #c33235);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.session-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dock-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #e4393c;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.btn-brand,
+.btn-ghost {
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.btn-ghost {
+  border: 1px solid #e7e7e7;
+  background: rgba(255, 255, 255, 0.92);
+  color: #4a4a4a;
+}
+
+.btn-ghost:hover {
+  border-color: rgba(228, 57, 60, 0.28);
+  color: #e4393c;
+  background: #fff4f4;
+}
+
+.btn-brand {
+  border: none;
+  color: #fff;
+  background: linear-gradient(135deg, #e4393c, #c33235);
+  box-shadow: 0 10px 20px rgba(228, 57, 60, 0.22);
+}
+
+.btn-brand:hover {
+  box-shadow: 0 14px 24px rgba(228, 57, 60, 0.28);
+}
+
+.bottom-dock {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  width: min(800px, calc(100vw - 28px));
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(228, 57, 60, 0.14);
+  box-shadow: 0 18px 48px rgba(20, 30, 24, 0.16);
+  backdrop-filter: blur(18px);
+  z-index: 90;
+}
+
+.bottom-dock-item {
+  position: relative;
+  min-width: 0;
+  display: inline-grid;
+  justify-items: center;
+  gap: 5px;
+  padding: 9px 6px;
+  border-radius: 20px;
+  color: #626262;
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.bottom-dock-item svg {
+  opacity: 0.8;
+}
+
+.bottom-dock-item:hover {
+  color: #e4393c;
+  background: #fff1f1;
+  transform: translateY(-2px);
+}
+
+.bottom-dock-item.active {
+  color: #fff;
+  background: linear-gradient(135deg, #e4393c, #c33235);
+  box-shadow: 0 10px 24px rgba(228, 57, 60, 0.26);
+}
+
+.bottom-dock-item.active svg {
+  opacity: 1;
+}
+
+body.has-bottom-dock .page {
+  padding-bottom: 150px;
+}
+
+body.shell-managed .topbar .nav,
+body.shell-managed .topbar .nav-pills {
+  display: none !important;
+}
+
+@media (max-width: 920px) {
+  .topbar.shell-topbar {
+    padding: 14px 16px 8px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .topbar-actions {
+    margin-left: auto;
+  }
+
+  .topbar-actions .session-badge {
+    display: inline-flex !important;
+    max-width: 68px;
+    padding: 5px;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .topbar-actions .session-badge .session-copy {
+    display: none !important;
+  }
+
+  .topbar-actions .session-badge .session-avatar-wrap {
+    width: 34px;
+    height: 34px;
+  }
+
+  .topbar-actions .session-badge .session-avatar {
+    width: 34px;
+    height: 34px;
+    font-size: 13px;
+  }
+
+  .topbar-actions .session-badge-link {
+    justify-content: center;
+  }
+
+  .bottom-dock {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    width: calc(100vw - 18px);
+    bottom: 12px;
+    padding: 8px;
+    gap: 6px;
+    border-radius: 22px;
+  }
+
+  .bottom-dock-item {
+    gap: 4px;
+    padding: 9px 4px;
+    font-size: 10px;
+  }
+
+  body.has-bottom-dock .page {
+    padding-bottom: 132px;
+  }
+}
+
+@media (max-width: 560px) {
+  .brand-btn {
+    font-size: 16px;
+    padding: 8px 12px 8px 8px;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .topbar-actions .btn-ghost,
+  .topbar-actions .btn-brand,
+  .topbar-actions button {
+    flex: 1 1 0;
+    justify-content: center;
+  }
+
+  .topbar-actions .session-badge {
+    flex: 0 0 auto;
+    order: -1;
+  }
+
+  .bottom-dock {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    width: calc(100vw - 12px);
+    left: 6px;
+    right: 6px;
+    transform: none;
+    bottom: 6px;
+    border-radius: 20px;
+    padding: 8px 6px;
+  }
+}

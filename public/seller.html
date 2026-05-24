@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Seller Profile | GreenLoop NZ</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-page="seller">
+    <header class="topbar">
+      <a class="brand" href="/">GreenLoop</a>
+      <nav class="nav">
+        <a href="/marketplace">Market</a>
+        <a href="/sell">Sell</a>
+        <a href="/services">Service</a>
+        <a href="/opportunities">Jobs</a>
+      </nav>
+      <div class="topbar-actions">
+        <div id="session-badge" class="session-badge"></div>
+        <button id="logout-button" class="ghost-button hidden" type="button">Logout</button>
+      </div>
+    </header>
+    <main class="page">
+      <section class="seller-hero">
+        <div class="seller-hero-copy main-card">
+          <p class="eyebrow">Seller profile</p>
+          <div class="seller-profile-head">
+            <div id="seller-avatar" class="profile-avatar profile-avatar-lg">GL</div>
+            <div class="seller-profile-copy">
+              <h1 id="seller-name">Seller</h1>
+              <p id="seller-meta" class="lede"></p>
+            </div>
+          </div>
+          <div id="seller-stats" class="visual-strip seller-strip"></div>
+          <div class="cta-row" id="seller-actions">
+            <a class="button icon-button" href="/marketplace"><span>⌂</span>Browse items</a>
+            <a class="ghost-button icon-button" href="/services"><span>→</span>Book services</a>
+          </div>
+        </div>
+        <div class="seller-hero-visual">
+          <article class="photo-card photo-card-large photo-room">
+            <div class="photo-chip">Trusted student seller</div>
+          </article>
+          <article class="photo-card photo-furniture">
+            <div class="photo-chip">Clean picks</div>
+          </article>
+        </div>
+      </section>
+      <section class="content-grid single">
+        <div class="main-card">
+          <div class="section-head">
+            <h2>Listings from this seller</h2>
+            <a class="ghost-link" href="/marketplace">Back to market</a>
+          </div>
+          <div id="items" class="listing-grid"></div>
+        </div>
+      </section>
+    </main>
+    <div id="toast" class="toast"></div>
+    <script src="/app-shell.js"></script>
+    <script src="/seller.js"></script>
+  </body>
+</html>

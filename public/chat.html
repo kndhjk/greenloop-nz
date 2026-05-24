@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Chat | GreenLoop NZ</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/greenloop-nav.css" />
+  </head>
+  <body data-page="chat">
+    <header class="topbar">
+      <a class="brand" href="/">GreenLoop</a>
+      <nav class="nav">
+        <a href="/marketplace">Marketplace</a>
+        <a href="/sell">Sell</a>
+        <a href="/services">Services</a>
+        <a href="/opportunities">Jobs</a>
+      </nav>
+      <div class="topbar-actions">
+        <div id="session-badge" class="session-badge"></div>
+        <button id="logout-button" class="ghost-button" type="button">Logout</button>
+      </div>
+    </header>
+
+    <main class="page">
+
+      <!-- Stats strip - always visible -->
+      <section class="chat-stats-bar">
+        <div class="chat-stats-bar-inner">
+          <div class="chat-stats-bar-item">
+            <strong id="chat-hero-count">0</strong>
+            <span>threads</span>
+          </div>
+          <div class="chat-stats-bar-sep"></div>
+          <div class="chat-stats-bar-item">
+            <strong id="chat-hero-unread">0</strong>
+            <span>unread</span>
+          </div>
+          <div class="chat-stats-bar-sep"></div>
+          <div class="chat-stats-bar-item">
+            <span id="chat-hero-online" class="online-pill">0</span>
+            <span>online</span>
+          </div>
+          <div class="chat-stats-bar-right">
+            <a class="ghost-link" href="/community">Campus →</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- Desktop: full two-panel layout -->
+      <section class="chat-hub-layout chat-layout-desktop">
+        <aside class="chat-rail">
+          <div class="chat-rail-search">
+            <input id="chat-search" type="search" placeholder="Search conversations..." />
+          </div>
+          <div id="chat-thread-list" class="chat-thread-list"></div>
+          <div class="chat-rail-footer">
+            <p class="fine-print">All conversations are UoA-verified. Build trust, then arrange pickup.</p>
+          </div>
+        </aside>
+
+        <section class="main-card chat-stage">
+          <button class="chat-back-btn hidden" id="chat-back-btn" type="button">← Inbox</button>
+
+          <div class="chat-stage-top">
+            <div class="chat-stage-identity">
+              <div id="chat-header-avatar" class="chat-avatar chat-avatar-xl chat-avatar-fallback">GL</div>
+              <div class="chat-stage-copy">
+                <div class="chat-stage-title-row">
+                  <h2 id="chat-title">Select a conversation</h2>
+                  <span id="chat-verified-pill" class="listing-badge listing-badge-soft hidden">Verified</span>
+                </div>
+                <p id="chat-subtitle" class="eyebrow">GreenLoop trust-first messaging</p>
+                <div id="chat-presence" class="chat-presence-row">
+                  <span id="chat-presence-dot" class="presence-dot"></span>
+                  <span id="chat-presence-text">Offline</span>
+                </div>
+              </div>
+            </div>
+            <div class="chat-stage-actions">
+              <a id="chat-profile-link" class="ghost-button hidden" href="/seller">Profile</a>
+              <a id="chat-item-link" class="button hidden" href="/item">Listing</a>
+            </div>
+          </div>
+
+          <div id="chat-context-card" class="chat-context-card hidden">
+            <div class="chat-context-media">
+              <img id="chat-context-image" alt="Context" />
+            </div>
+            <div class="chat-context-copy">
+              <p class="eyebrow">About this listing</p>
+              <strong id="chat-context-title">—</strong>
+              <span id="chat-context-meta" class="fine-print">Chat directly about this post.</span>
+              <div class="chat-context-links">
+                <a id="chat-context-item-link" href="/item">Open item →</a>
+                <a id="chat-context-seller-link" href="/seller">Seller profile →</a>
+              </div>
+            </div>
+          </div>
+
+          <div id="chat-messages" class="chat-message-stream">
+            <div class="chat-empty-panel">
+              <div class="chat-empty-icon">💬</div>
+              <h3>Start a conversation</h3>
+              <p>Browse any listing, service, or profile and tap <strong>Chat</strong> to begin. All threads stay here.</p>
+            </div>
+          </div>
+
+          <div id="chat-image-preview" class="chat-image-preview hidden">
+            <img id="chat-image-preview-img" alt="Preview" />
+            <div class="chat-image-preview-copy">
+              <strong>Image attached</strong>
+              <span>Confirm before sending.</span>
+            </div>
+            <button id="chat-image-clear" type="button">Remove ✕</button>
+          </div>
+
+          <form id="chat-compose" class="chat-compose hidden">
+            <div class="chat-compose-main">
+              <label class="image-picker" for="chat-image-input" title="Attach image">📷</label>
+              <input id="chat-image-input" type="file" accept="image/*" class="hidden" />
+              <textarea id="chat-input" placeholder="Send a message… arrange pickup, ask a question, build trust."></textarea>
+            </div>
+            <button class="chat-send-btn" type="submit">Send</button>
+          </form>
+        </section>
+      </section>
+
+      <!-- Mobile layout -->
+      <section class="chat-layout-mobile">
+        <div id="chat-thread-strip" class="chat-thread-strip"></div>
+        <div id="chat-mobile-stage" class="chat-mobile-stage">
+          <div class="chat-empty-panel">
+            <div class="chat-empty-icon">💬</div>
+            <h3>Pick a thread above</h3>
+            <p>Swipe to find your conversation, then start chatting.</p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <div id="toast" class="toast"></div>
+    <script src="/app-shell.js"></script>
+    <script src="/chat.js"></script>
+  </body>
+</html>
