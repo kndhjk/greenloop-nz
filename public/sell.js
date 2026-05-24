@@ -14,6 +14,14 @@ const uploadFile = async (input) => {
   if (!response.ok) throw new Error(data.error || "Upload failed.");
   uploadedItemUrl = data.url;
   GreenLoop.showToast("Image uploaded.");
+  const preview = document.getElementById("sell-image-preview");
+  if (preview && uploadedItemUrl) {
+    preview.src = uploadedItemUrl;
+    preview.style.display = "block";
+    preview.style.maxWidth = "200px";
+    preview.style.borderRadius = "8px";
+    preview.style.marginTop = "8px";
+  }
 };
 
 const boot = async () => {
@@ -26,33 +34,50 @@ const boot = async () => {
     }
   });
 
-  GreenLoop.$("#publish-form")?.addEventListener("submit", async (event) => {
+  const form = GreenLoop.$("#publish-form");
+  const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+
+  form?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const formElement = event.currentTarget;
+    const title = document.getElementById("item-title")?.value?.trim();
+    const description = document.getElementById("item-description")?.value?.trim();
+    const category = document.getElementById("item-category")?.value;
+    const price = document.getElementById("item-price")?.value;
+    if (!title) { GreenLoop.showToast("Please enter a title.", true); return; }
+    if (!description) { GreenLoop.showToast("Please enter a description.", true); return; }
+    if (!category) { GreenLoop.showToast("Please select a category.", true); return; }
+    if (!price || isNaN(price) || Number(price) < 0) { GreenLoop.showToast("Please enter a valid price.", true); return; }
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Publishing…"; }
     try {
-      const form = new FormData(formElement);
-      const payload = Object.fromEntries(form.entries());
+      const formElement = event.currentTarget;
+      const formData = new FormData(formElement);
+      const payload = Object.fromEntries(formData.entries());
       payload.images = [uploadedItemUrl || payload.imageUrl].filter(Boolean);
       payload.deliveryOptions = String(payload.deliveryOptions || "")
         .split(",")
-        .map((value) => value.trim())
+        .map((v) => v.trim())
         .filter(Boolean);
-      payload.donationAvailable = form.get("donationAvailable") === "on";
+      payload.donationAvailable = formData.get("donationAvailable") === "on";
       const result = await GreenLoop.api("/api/items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (formElement && typeof formElement.reset === "function") {
-        formElement.reset();
-      }
+      formElement.reset();
       uploadedItemUrl = "";
+      const preview = document.getElementById("sell-image-preview");
+      if (preview) { preview.style.display = "none"; }
       GreenLoop.showToast("Listing published.");
-      setTimeout(() => {
-        window.location.href = `/item?id=${result.id}`;
-      }, 500);
+      setTimeout(() => { window.location.href = `/item?id=${result.id}`; }, 500);
     } catch (error) {
       GreenLoop.showToast(error.message, true);
+    } finally {
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "List item"; }
+    }
+    } catch (error) {
+      GreenLoop.showToast(error.message, true);
+    } finally {
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "List item"; }
     }
   });
 };
