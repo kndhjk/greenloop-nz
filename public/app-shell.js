@@ -260,6 +260,10 @@ const GreenLoop = (() => {
     if (adminLink) {
       adminLink.classList.toggle("hidden", !state.user?.isAdmin);
     }
+    if (state.user && window.location.pathname === "/admin" && !state.user?.isAdmin) {
+      window.location.href = "/dashboard";
+      return;
+    }
 
     ensureFab();
     const fab = $("#floating-plus-btn");
@@ -268,14 +272,16 @@ const GreenLoop = (() => {
       fab.classList.toggle("hidden", !state.token || onSellPage);
     }
 
-    // Admin: click avatar → go to /admin instead of /seller
+    // Avatar: admins go to /admin, regular users go to their seller profile
     const avatarLink = document.querySelector(".session-badge-link-tpl");
-    if (avatarLink && state.user?.isAdmin) {
-      avatarLink.href = "/admin";
-      avatarLink.setAttribute("aria-label", "Open admin panel");
-      avatarLink.classList.add("session-badge-admin");
-    } else if (avatarLink) {
-      avatarLink.href = "/seller?id=" + (state.user?.id || "");
+    if (avatarLink) {
+      if (state.user?.isAdmin) {
+        avatarLink.href = "/admin";
+        avatarLink.setAttribute("aria-label", "Admin panel");
+        avatarLink.classList.add("session-badge-admin");
+      } else {
+        avatarLink.href = "/seller?id=" + (state.user?.id || "");
+      }
     }
   };
 
@@ -323,21 +329,31 @@ const GreenLoop = (() => {
   };
 
   const wireListingChatButtons = (target) => {
-    target.querySelectorAll(".listing-chat-button").forEach((button) => {
-      button.addEventListener("click", async () => {
-        try {
-          const conversation = await api("/api/chats/start", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ itemId: Number(button.dataset.itemId) }),
-          });
-          window.location.href = `/chat?conversation=${conversation.id}`;
-        } catch (error) {
-          showToast(error.message, true);
-        }
-      });
+  target.querySelectorAll(".listing-chat-button").forEach((button) => {
+    button.addEventListener("click", (e) => {
+      e.preventDefault();
+      const itemId = button.dataset.itemId;
+      window.location.href = `/chat?conversation=new&itemId=${itemId}`;
     });
-  };
+  });
+  // Delete button — owner or admin
+  target.querySelectorAll(".listing-delete-btn").forEach((button) => {
+    button.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const itemId = button.dataset.itemId;
+      const itemTitle = button.dataset.itemTitle;
+      if (!confirm(`Delete "${itemTitle}"? This cannot be undone.`)) return;
+      try {
+        await api(`/api/items/${itemId}`, { method: "DELETE" });
+        showToast("Item deleted.");
+        const data = await api("/api/items");
+        renderItems(data.items || []);
+      } catch (err) {
+        showToast(err.message || "Delete failed.", true);
+      }
+    });
+  });
+};
 
   const renderItems = (items, targetId = "items") => {
     const target = document.getElementById(targetId);
@@ -385,6 +401,7 @@ const GreenLoop = (() => {
               <small class="listing-pickup">Fast view, clear price, ready to reserve.</small>
               <div class="cta-row">
                 ${state.user && Number(state.user.id) !== Number(item.seller_id) ? `<button class="ghost-button listing-chat-button" data-item-id="${item.id}" type="button">Chat seller</button>` : ""}
+                ${state.user && (Number(state.user.id) === Number(item.seller_id) || state.user.isAdmin) ? `<button class="listing-delete-btn" data-item-id="${item.id}" data-item-title="${escapeHtml(item.title)}" type="button" style="color:#e4393c;font-weight:700">Delete</button>` : ""}
                 <a class="ghost-link" href="/item?id=${item.id}">View item →</a>
               </div>
             </div>
