@@ -2110,3 +2110,7 @@ textarea {
   color: #e4393c;
   font-weight: 800;
 }
+
+/* Date separator */
+.chat-date-separator{display:flex;align-items:center;justify-content:center;margin:12px 0 8px}
+.chat-date-separator span{background:var(--bg-2,#f3f4f6);color:#888;font-size:11px;padding:2px 10px;border-radius:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
