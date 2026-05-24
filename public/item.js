@@ -60,6 +60,42 @@ const bootItem = async () => {
       }
     });
   }
+
+
+  // Delete button: owner or admin only
+  const user = GreenLoop.state?.user;
+  if (user && (Number(user.id) === Number(item.seller_id) || user.isAdmin)) {
+    const btn = document.createElement("button");
+    btn.className = "ghost-button";
+    btn.style.cssText = "color:#e4393c;font-weight:700;margin-left:8px";
+    btn.type = "button";
+    btn.id = "item-delete-btn";
+    btn.textContent = "Delete this item";
+    chatButton?.parentElement?.appendChild(btn);
+    btn.addEventListener("click", async () => {
+      if (!confirm("Delete this listing? This cannot be undone.")) return;
+      try {
+        await GreenLoop.api(`/api/items/${itemId}`, { method: "DELETE" });
+        GreenLoop.showToast("Item deleted.");
+        window.location.href = "/marketplace";
+      } catch (err) {
+        GreenLoop.showToast(err.message || "Delete failed.", true);
+      }
+    }
+
+  // Share button
+  const shareBtn = document.getElementById("share-item-btn");
+  if (shareBtn) {
+    shareBtn.addEventListener("click", async () => {
+      const url = window.location.href;
+      if (navigator.share) {
+        try { await navigator.share({ title: item.title, url }); } catch (e) {}
+      } else {
+        try { await navigator.clipboard.writeText(url); GreenLoop.showToast("Link copied!"); } catch (e) { GreenLoop.showToast("Could not copy link."); }
+      }
+    });
+  });
+  }
   renderThumbs(item);
   GreenLoop.renderMiniItems(related || []);
 };
