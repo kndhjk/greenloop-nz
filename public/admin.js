@@ -206,4 +206,15 @@ document.getElementById("admin-user-search")?.addEventListener("keydown", async 
 });
 
 fillAdminForm(null);
-bootAdmin().catch((error) => GreenLoop.showToast(error.message, true));
+bootAdmin().catch((error) => {
+      if (error.message && error.message.includes("Administrator")) {
+        document.querySelector("main").innerHTML = `
+          <section class="page" style="text-align:center;padding:80px 20px">
+            <h1 style="font-size:2em;margin-bottom:16px">Access denied</h1>
+            <p style="color:#888;margin-bottom:24px">You do not have administrator privileges.</p>
+            <a href="/dashboard" class="ghost-button">Back to dashboard</a>
+          </section>`;
+      } else {
+        GreenLoop.showToast(error.message, true);
+      }
+    });
