@@ -60,6 +60,17 @@ const formatTime = (value) => {
   });
 };
 
+const formatDateHeader = (dateStr) => {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return "Today";
+  if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return d.toLocaleDateString("en-NZ", { weekday: "long", day: "numeric", month: "long" });
+};
+
 const formatPresence = (user) => {
   if (!user) return "Offline";
   if (user.isOnline) return "Online now";
