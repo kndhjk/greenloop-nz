@@ -185,20 +185,28 @@ stage?.addEventListener("pointerup", stopDragging);
 stage?.addEventListener("pointercancel", stopDragging);
 window.addEventListener("resize", renderStage);
 
+const regSubmitBtn = registerForm?.querySelector('button[type="submit"]');
 registerForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (regSubmitBtn) { regSubmitBtn.disabled = true; regSubmitBtn.textContent = "Sending…"; }
   try {
     await startRegistration();
   } catch (error) {
     GreenLoop.showToast(error.message, true);
+  } finally {
+    if (regSubmitBtn) { regSubmitBtn.disabled = false; regSubmitBtn.textContent = "Register"; }
   }
 });
 
+const verifySubmitBtn = document.getElementById("verify-submit");
 document.getElementById("verify-submit")?.addEventListener("click", async () => {
+  if (verifySubmitBtn) { verifySubmitBtn.disabled = true; verifySubmitBtn.textContent = "Verifying…"; }
   try {
     await verifyRegistration();
   } catch (error) {
     GreenLoop.showToast(error.message, true);
+  } finally {
+    if (verifySubmitBtn) { verifySubmitBtn.disabled = false; verifySubmitBtn.textContent = "Verify"; }
   }
 });
 
