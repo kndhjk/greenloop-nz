@@ -1,4 +1,38 @@
+const PAGE_SIZE = 20;
+let _allItems = [];
+let _currentPage = 0;
+
 const loadItems = async (params = {}) => {
+  _currentPage = 0;
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => { if (value) search.set(key, value); });
+  const data = await GreenLoop.api("/api/items?" + search.toString());
+  _allItems = data.items || [];
+  GreenLoop.renderItems(_allItems.slice(0, PAGE_SIZE));
+  _renderLoadMore();
+};
+
+const _renderLoadMore = () => {
+  const oldBtn = document.getElementById("load-more-btn");
+  if (oldBtn) oldBtn.remove();
+  const remaining = _allItems.length - (_currentPage + 1) * PAGE_SIZE;
+  if (remaining <= 0) return;
+  const btn = document.createElement("button");
+  btn.id = "load-more-btn";
+  btn.className = "ghost-button";
+  btn.type = "button";
+  btn.style.cssText = "display:block;margin:16px auto;font-weight:700";
+  btn.textContent = "Load more (" + remaining + " more)";
+  btn.addEventListener("click", () => {
+    _currentPage++;
+    const nextItems = _allItems.slice(0, (_currentPage + 1) * PAGE_SIZE);
+    GreenLoop.renderItems(nextItems);
+    _renderLoadMore();
+  });
+  document.querySelector(".main-card")?.appendChild(btn);
+};
+
+const loadItems_ORIGINAL = async (params = {}) => {
   const search = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value) search.set(key, value);
