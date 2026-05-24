@@ -8,7 +8,9 @@ const renderList = (targetId, rows, formatter) => {
   target.innerHTML = rows.map(formatter).join("");
 };
 
-const reservationActions = (item) => {
+const reservationActions = (item, currentUserId) => {
+  // Only the item SELLER can take actions on a reservation
+  if (Number(item.seller_id) !== Number(currentUserId)) return "";
   if (item.status === "pending") {
     return `
       <div class="cta-row">
@@ -30,6 +32,7 @@ const reservationActions = (item) => {
 
 const boot = async () => {
   await GreenLoop.bootstrap({ protectedPage: true });
+  const submitBtn = document.querySelector('#publish-form button[type="submit"]');
   const data = await GreenLoop.api("/api/dashboard");
 
   const stats = document.getElementById("stats");
@@ -42,8 +45,9 @@ const boot = async () => {
   renderList(
     "reservations",
     data.summary.reservations,
-    (item) => `<article class="data-row"><strong>${item.title}</strong><span>${item.status}</span><small>${item.pickup_time}</small>${reservationActions(item)}</article>`
+    (item) => `<article class="data-row"><strong>${item.title}</strong><span>${item.status}</span><small>${item.pickup_time}</small>${reservationActions(item, data.user.id)}</article>`
   );
+
   renderList(
     "notifications",
     data.summary.notifications,
