@@ -930,7 +930,7 @@ app.get(
     const [[userItems], [reservations], [notifications], [memberships]] = await Promise.all([
       pool.execute("SELECT COUNT(*) AS count FROM items WHERE seller_id = ?", [req.user.id]),
       pool.execute(
-        `SELECT r.id, r.status, r.pickup_time, i.title
+        `SELECT r.id, r.status, r.pickup_time, i.title, i.seller_id
          FROM reservations r
          JOIN items i ON i.id = r.item_id
          WHERE r.buyer_id = ? OR r.seller_id = ?
@@ -1417,6 +1417,24 @@ app.post(
 
     await logUserActivity(req, req.user.id, "item_create", "item", result.insertId, { category, price: Number(price) });
     res.status(201).json({ id: result.insertId });
+  })
+);
+
+// DELETE /api/items/:id — owner or admin only
+app.delete(
+  "/api/items/:id",
+  authRequired,
+  asyncHandler(async (req, res) => {
+    const itemId = Number(req.params.id);
+    const userId = req.user.id;
+    const isAdmin = req.user.isAdmin;
+    const [[item]] = await pool.query("SELECT id, seller_id FROM items WHERE id = ?", [itemId]);
+    if (!item) return res.status(404).json({ error: "Item not found." });
+    if (Number(item.seller_id) !== userId && !isAdmin) {
+      return res.status(403).json({ error: "Only the seller or admin can delete this item." });
+    }
+    await pool.query("DELETE FROM items WHERE id = ?", [itemId]);
+    res.json({ success: true });
   })
 );
 
