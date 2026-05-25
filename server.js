@@ -19,15 +19,35 @@ const ALLOWED_STUDENT_DOMAINS = String(process.env.ALLOWED_STUDENT_DOMAINS || "a
   .map((v) => v.trim().toLowerCase())
   .filter(Boolean);
 const REGISTRATION_CODE_TTL_MINUTES = Number(process.env.REGISTRATION_CODE_TTL_MINUTES || 10);
-const ADMIN_BOOTSTRAP_EMAIL = String(process.env.ADMIN_BOOTSTRAP_EMAIL || "admin@auckland.ac.nz").trim().toLowerCase();
+const ADMIN_BOOTSTRAP_EMAIL = String(process.env.ADMIN_BOOTSTRAP_EMAIL || "").trim().toLowerCase();
 const ADMIN_EMAILS = Array.from(new Set(`${process.env.ADMIN_EMAILS || ""},${ADMIN_BOOTSTRAP_EMAIL}`
   .split(",")
   .map((v) => v.trim().toLowerCase())
   .filter(Boolean)));
-const ADMIN_BOOTSTRAP_PASSWORD = String(process.env.ADMIN_BOOTSTRAP_PASSWORD || "GreenLoopAdmin2026!");
+const ADMIN_BOOTSTRAP_PASSWORD = String(process.env.ADMIN_BOOTSTRAP_PASSWORD || "");
 const ADMIN_BOOTSTRAP_NAME = String(process.env.ADMIN_BOOTSTRAP_NAME || "GreenLoop Admin").trim();
-const EXPOSE_RESET_LINKS = String(process.env.EXPOSE_RESET_LINKS || "1") === "1";
+const EXPOSE_RESET_LINKS = String(process.env.EXPOSE_RESET_LINKS || "0") === "1";
 const PUBLIC_BASE_URL = String(process.env.PUBLIC_BASE_URL || `http://127.0.0.1:${PORT}`).replace(/\/$/, "");
+const normalizeOrigin = (value) => {
+  try {
+    return new URL(String(value || "").trim()).origin;
+  } catch {
+    return null;
+  }
+};
+const PUBLIC_ORIGIN = normalizeOrigin(PUBLIC_BASE_URL);
+const LOCAL_ORIGINS = [`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`];
+const CORS_ALLOWED_ORIGINS = Array.from(
+  new Set(
+    [PUBLIC_ORIGIN, ...LOCAL_ORIGINS,
+      ...String(process.env.CORS_ALLOWED_ORIGINS || "")
+        .split(",")
+        .map((v) => normalizeOrigin(v))
+        .filter(Boolean),
+    ].filter(Boolean)
+  )
+);
+const shouldExposeQaResetLink = EXPOSE_RESET_LINKS && /^(http:\/\/localhost|http:\/\/127\.0\.0\.1)(:\d+)?$/i.test(PUBLIC_BASE_URL);
 const SMTP_HOST = process.env.SMTP_HOST || "mail.mixport.co.nz";
 const SMTP_PORT = Number(process.env.SMTP_PORT || 465);
 const SMTP_SECURE = String(process.env.SMTP_SECURE || "1") === "1";
@@ -83,16 +103,33 @@ const upload = multer({
 });
 
 app.disable("x-powered-by");
-app.use(cors());
+app.use(
+  cors({
+    origin(origin, cb) {
+      if (!origin || !CORS_ALLOWED_ORIGINS.length || CORS_ALLOWED_ORIGINS.includes(origin)) {
+        return cb(null, true);
+      }
+      return cb(null, false);
+    },
+    optionsSuccessStatus: 204,
+  })
+);
 app.use((req, res, next) => {
+  res.vary("Origin");
   res.setHeader("X-Frame-Options", "SAMEORIGIN");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  res.setHeader("Cross-Origin-Resource-Policy", "same-site");
   res.setHeader(
     "Content-Security-Policy",
     "default-src 'self' https: data: blob:; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' https:; connect-src 'self' https:; font-src 'self' https: data:; frame-ancestors 'self'; base-uri 'self'; form-action 'self';"
   );
+  const noIndexPrefixes = ["/api/", "/admin", "/dashboard", "/chat", "/login", "/register", "/forgot-password", "/reset-password"];
+  if (noIndexPrefixes.some((prefix) => req.path === prefix || req.path.startsWith(prefix))) {
+    res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  }
   next();
 });
 app.use(express.json({ limit: "12mb" }));
@@ -167,6 +204,7 @@ const createToken = () => `${Date.now().toString(36)}${Math.random().toString(36
 const createVerificationCode = () => String(Math.floor(100000 + Math.random() * 900000));
 const isAdminEmail = (value) => ADMIN_EMAILS.includes(String(value || "").trim().toLowerCase());
 const buildAbsoluteUrl = (targetPath) => `${PUBLIC_BASE_URL}${targetPath.startsWith("/") ? targetPath : `/${targetPath}`}`;
+const sendPublicPage = (res, file, status = 200) => res.status(status).sendFile(path.join(__dirname, "public", file));
 const formatJoinDate = (value) =>
   new Date(value).toLocaleDateString("en-NZ", {
     year: "numeric",
@@ -993,7 +1031,7 @@ app.post(
     await sendPasswordResetEmail({ user, resetToken });
 
     const response = { ok: true, message: "Password reset email sent." };
-    if (EXPOSE_RESET_LINKS) {
+    if (shouldExposeQaResetLink) {
       response.resetUrl = `/reset-password?token=${encodeURIComponent(resetToken)}`;
     }
     res.json(response);
@@ -2696,9 +2734,54 @@ const pageRoutes = {
   "/admin/verifications": "admin-verifications.html",
 };
 
+const sitemapRoutes = [
+  "/",
+  "/marketplace",
+  "/services",
+  "/opportunities",
+  "/community",
+  "/help",
+  "/trust",
+  "/privacy",
+  "/terms",
+];
+
+app.get("/robots.txt", (_req, res) => {
+  res.type("text/plain").send(
+    [
+      "User-agent: *",
+      "Allow: /",
+      "Disallow: /api/",
+      "Disallow: /admin",
+      "Disallow: /dashboard",
+      "Disallow: /chat",
+      "Disallow: /login",
+      "Disallow: /register",
+      "Disallow: /forgot-password",
+      "Disallow: /reset-password",
+      `Sitemap: ${buildAbsoluteUrl("/sitemap.xml")}`,
+    ].join("\n")
+  );
+});
+
+app.get("/sitemap.xml", (_req, res) => {
+  const now = new Date().toISOString();
+  const xml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ...sitemapRoutes.map((route) => `  <url><loc>${buildAbsoluteUrl(route)}</loc><lastmod>${now}</lastmod></url>`),
+    "</urlset>",
+  ].join("\n");
+  res.type("application/xml").send(xml);
+});
+
+app.get("/favicon.ico", (_req, res) => {
+  sendPublicPage(res, "favicon.svg");
+});
+
 for (const [route, file] of Object.entries(pageRoutes)) {
   app.get(route, (_req, res) => {
-    res.sendFile(path.join(__dirname, "public", file));
+    sendPublicPage(res, file);
   });
 }
 
@@ -2775,8 +2858,14 @@ app.get("/api/stats", (_req, res) => {
   });
 });
 
-app.get("*", (_req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+app.use((req, res) => {
+  if (req.path.startsWith("/api/")) {
+    return res.status(404).json({ error: "Route not found." });
+  }
+  if ((req.method === "GET" || req.method === "HEAD") && !path.extname(req.path)) {
+    return sendPublicPage(res, "404.html", 404);
+  }
+  return res.status(404).type("text/plain").send("Not found.");
 });
 
 app.use((err, _req, res, _next) => {
