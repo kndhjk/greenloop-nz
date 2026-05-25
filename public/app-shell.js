@@ -312,6 +312,13 @@ const GreenLoop = (() => {
     return data.user;
   };
 
+  const resolvePostAuthRedirect = (redirectAuthedTo, user = state.user) => {
+    if (!redirectAuthedTo) return null;
+    if (typeof redirectAuthedTo === "function") return redirectAuthedTo(user);
+    if (redirectAuthedTo === "/dashboard") return getPostLoginPath(user);
+    return redirectAuthedTo;
+  };
+
   const bootstrap = async ({ protectedPage = false, redirectAuthedTo = null } = {}) => {
     try {
       if (state.token) {
@@ -325,7 +332,10 @@ const GreenLoop = (() => {
     updateChrome();
 
     if (redirectAuthedTo && state.user) {
-      window.location.href = redirectAuthedTo;
+      const nextPath = resolvePostAuthRedirect(redirectAuthedTo, state.user);
+      if (nextPath) {
+        window.location.replace(nextPath);
+      }
       return null;
     }
     if (protectedPage) {
@@ -468,6 +478,11 @@ const GreenLoop = (() => {
       .join("");
   };
 
+  const getPostLoginPath = (user = state.user) => {
+    if (user?.isAdmin) return "/admin";
+    return "/dashboard";
+  };
+
   return {
     $,
     api,
@@ -483,6 +498,7 @@ const GreenLoop = (() => {
     renderOpportunities,
     renderSellerBadge,
     getListingImage,
+    getPostLoginPath,
   };
 })();
 

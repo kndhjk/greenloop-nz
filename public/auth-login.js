@@ -11,7 +11,7 @@ GreenLoop.$("#login-form")?.addEventListener("submit", async (event) => {
     });
     GreenLoop.setSession(data);
     GreenLoop.showToast("Login successful.");
-    window.location.href = "/dashboard";
+    window.location.replace(GreenLoop.getPostLoginPath(data.user));
   } catch (error) {
     GreenLoop.showToast(error.message, true);
   }

@@ -131,7 +131,7 @@ const verifyRegistration = async () => {
   });
   GreenLoop.setSession(data);
   GreenLoop.showToast("Registration complete. Welcome email sent.");
-  window.location.href = "/dashboard";
+  window.location.replace(GreenLoop.getPostLoginPath(data.user));
 };
 
 zoomInput?.addEventListener("input", () => {
