@@ -44,6 +44,8 @@ const boot = async () => {
   const adminPanel = document.getElementById("admin-dashboard-panel");
   const adminLinks = document.getElementById("admin-dashboard-links");
   if (currentUser?.isAdmin && adminPanel && adminLinks) {
+    const adminSummary = await GreenLoop.api("/api/admin/summary");
+    const totals = adminSummary?.totals || {};
     adminPanel.classList.remove("hidden");
     adminLinks.innerHTML = `
       <a class="admin-quick-card" href="/admin">
@@ -55,14 +57,26 @@ const boot = async () => {
       <a class="admin-quick-card" href="/admin#admin-verifications">
         <span class="admin-quick-kicker">Queue</span>
         <strong>Verification review</strong>
-        <p>Check pending students before they get stuck outside the core flows.</p>
+        <p>${totals.pendingVerifications || 0} users are waiting for approval or rejection.</p>
         <span class="admin-quick-cta">Review queue →</span>
       </a>
       <a class="admin-quick-card" href="/admin#admin-support">
         <span class="admin-quick-kicker">Inbox</span>
         <strong>Support requests</strong>
-        <p>Handle trust, bug, and logistics issues without hunting through the admin page.</p>
+        <p>${totals.supportRequests || 0} support requests need triage, follow-up, or closure.</p>
         <span class="admin-quick-cta">Open support →</span>
+      </a>
+      <a class="admin-quick-card" href="/admin#admin-ops">
+        <span class="admin-quick-kicker">Operations</span>
+        <strong>Pickup and service approvals</strong>
+        <p>${totals.opsRequests || 0} operational requests are waiting for status changes.</p>
+        <span class="admin-quick-cta">Run ops →</span>
+      </a>
+      <a class="admin-quick-card" href="/admin#admin-applications">
+        <span class="admin-quick-kicker">Hiring</span>
+        <strong>Applications and CV review</strong>
+        <p>${totals.applications || 0} job applications are in the hiring inbox.</p>
+        <span class="admin-quick-cta">Review applicants →</span>
       </a>
     `;
   }

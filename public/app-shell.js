@@ -265,6 +265,203 @@ const GreenLoop = (() => {
     shortcut.classList.toggle("admin-shortcut-on-admin", window.location.pathname === "/admin");
   };
 
+  const ensureAdminDrawer = () => {
+    if (!state.user?.isAdmin || window.location.pathname === "/admin") {
+      document.body.classList.remove("admin-console-drawer-open");
+      document.getElementById("global-admin-drawer-toggle")?.remove();
+      document.getElementById("global-admin-drawer-backdrop")?.remove();
+      document.getElementById("global-admin-drawer")?.remove();
+      return;
+    }
+
+    if (!document.getElementById("global-admin-drawer-style")) {
+      const style = document.createElement("style");
+      style.id = "global-admin-drawer-style";
+      style.textContent = `
+        .global-admin-drawer-toggle {
+          position: fixed;
+          left: 14px;
+          top: 96px;
+          z-index: 66;
+          border: none;
+          border-radius: 999px;
+          padding: 12px 14px;
+          color: #fff;
+          cursor: pointer;
+          background: linear-gradient(135deg, #7f1d1d, #b45309);
+          box-shadow: 0 18px 36px rgba(127, 29, 29, 0.24);
+        }
+        .global-admin-drawer-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 72;
+          background: rgba(15, 23, 42, 0.24);
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity .18s ease;
+        }
+        body.admin-console-drawer-open .global-admin-drawer-backdrop {
+          opacity: 1;
+          pointer-events: auto;
+        }
+        .global-admin-drawer {
+          position: fixed;
+          top: 0;
+          left: 0;
+          z-index: 74;
+          width: min(320px, calc(100vw - 24px));
+          height: 100vh;
+          padding: 18px 16px 24px;
+          overflow: auto;
+          display: grid;
+          align-content: start;
+          gap: 16px;
+          background: rgba(255, 251, 244, 0.98);
+          border-right: 1px solid var(--line);
+          box-shadow: 0 24px 48px rgba(123, 79, 63, 0.18);
+          transform: translateX(-102%);
+          transition: transform .2s ease;
+        }
+        body.admin-console-drawer-open .global-admin-drawer {
+          transform: translateX(0);
+        }
+        .global-admin-drawer-head {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 16px;
+          padding-bottom: 12px;
+          border-bottom: 1px solid var(--line);
+        }
+        .global-admin-drawer-head h2 {
+          margin: 0 0 6px;
+          font-size: 20px;
+        }
+        .global-admin-drawer-copy {
+          margin: 0;
+          color: var(--muted);
+          font-size: 13px;
+          line-height: 1.5;
+        }
+        .global-admin-drawer-group {
+          display: grid;
+          gap: 10px;
+        }
+        .global-admin-drawer-group h3 {
+          margin: 0;
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: .08em;
+          color: var(--muted);
+        }
+        .global-admin-drawer-link {
+          display: block;
+          text-decoration: none;
+          padding: 12px 14px;
+          border-radius: 14px;
+          border: 1px solid var(--line);
+          background: rgba(255, 247, 238, 0.9);
+          color: var(--ink);
+          font-weight: 700;
+        }
+        .global-admin-drawer-link span {
+          display: block;
+          margin-top: 4px;
+          font-size: 12px;
+          font-weight: 500;
+          color: var(--muted);
+        }
+        @media (max-width: 900px) {
+          .global-admin-drawer-toggle {
+            top: 84px;
+            left: 10px;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    let toggle = document.getElementById("global-admin-drawer-toggle");
+    let backdrop = document.getElementById("global-admin-drawer-backdrop");
+    let drawer = document.getElementById("global-admin-drawer");
+
+    if (!toggle) {
+      toggle = document.createElement("button");
+      toggle.id = "global-admin-drawer-toggle";
+      toggle.className = "global-admin-drawer-toggle";
+      toggle.type = "button";
+      toggle.textContent = "☰ Admin";
+      document.body.appendChild(toggle);
+    }
+    if (!backdrop) {
+      backdrop = document.createElement("div");
+      backdrop.id = "global-admin-drawer-backdrop";
+      backdrop.className = "global-admin-drawer-backdrop";
+      document.body.appendChild(backdrop);
+    }
+    if (!drawer) {
+      drawer = document.createElement("aside");
+      drawer.id = "global-admin-drawer";
+      drawer.className = "global-admin-drawer";
+      document.body.appendChild(drawer);
+    }
+
+    drawer.innerHTML = `
+      <div class="global-admin-drawer-head">
+        <div>
+          <h2>Admin 管理</h2>
+          <p class="global-admin-drawer-copy">全站都能从这里弹出管理入口，不用回忆后台藏在哪。</p>
+        </div>
+        <button id="global-admin-drawer-close" class="ghost-button" type="button">Close</button>
+      </div>
+      <div class="global-admin-drawer-group">
+        <h3>运营控制台</h3>
+        <a class="global-admin-drawer-link" href="/admin"><strong>Admin overview</strong><span>总览、统计、用户、工单、审核</span></a>
+        <a class="global-admin-drawer-link" href="/admin#admin-users"><strong>Users</strong><span>增删改查用户账号</span></a>
+        <a class="global-admin-drawer-link" href="/admin#admin-verifications"><strong>Verification</strong><span>批准 / 拒绝学生验证</span></a>
+        <a class="global-admin-drawer-link" href="/admin#admin-ops"><strong>Ops requests</strong><span>审批预约、配送、服务、捐赠</span></a>
+        <a class="global-admin-drawer-link" href="/admin#admin-support"><strong>Support inbox</strong><span>处理帮助、信任、安全问题</span></a>
+        <a class="global-admin-drawer-link" href="/admin#admin-items"><strong>Listings</strong><span>改、删、修正商品信息</span></a>
+        <a class="global-admin-drawer-link" href="/admin#admin-opportunities"><strong>Opportunities</strong><span>岗位发布、修改、删除</span></a>
+        <a class="global-admin-drawer-link" href="/admin#admin-applications"><strong>Applications</strong><span>批准 / 拒绝 / 更新申请状态</span></a>
+      </div>
+      <div class="global-admin-drawer-group">
+        <h3>业务页面</h3>
+        <a class="global-admin-drawer-link" href="/dashboard"><strong>Dashboard</strong><span>管理员账号的业务侧视角</span></a>
+        <a class="global-admin-drawer-link" href="/marketplace"><strong>Marketplace</strong><span>看前台展示与商品卡片</span></a>
+        <a class="global-admin-drawer-link" href="/sell"><strong>Sell</strong><span>检查发布链路</span></a>
+        <a class="global-admin-drawer-link" href="/services"><strong>Services</strong><span>检查服务申请页</span></a>
+        <a class="global-admin-drawer-link" href="/opportunities"><strong>Jobs</strong><span>检查岗位页与投递体验</span></a>
+        <a class="global-admin-drawer-link" href="/chat"><strong>Chat</strong><span>检查站内沟通页</span></a>
+        <a class="global-admin-drawer-link" href="/community"><strong>Community</strong><span>检查社区 feed</span></a>
+      </div>
+    `;
+
+    const openDrawer = () => document.body.classList.add("admin-console-drawer-open");
+    const closeDrawer = () => document.body.classList.remove("admin-console-drawer-open");
+
+    if (!toggle.dataset.bound) {
+      toggle.addEventListener("click", () => {
+        document.body.classList.toggle("admin-console-drawer-open");
+      });
+      toggle.dataset.bound = "1";
+    }
+    if (!backdrop.dataset.bound) {
+      backdrop.addEventListener("click", closeDrawer);
+      backdrop.dataset.bound = "1";
+    }
+    drawer.querySelector("#global-admin-drawer-close")?.addEventListener("click", closeDrawer);
+    drawer.querySelectorAll(".global-admin-drawer-link").forEach((link) => {
+      link.addEventListener("click", closeDrawer);
+    });
+    if (!document.body.dataset.adminDrawerEscBound) {
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") closeDrawer();
+      });
+      document.body.dataset.adminDrawerEscBound = "1";
+    }
+  };
+
   const upsertMeta = (name, content, attribute = "name") => {
     let tag = document.head.querySelector(`meta[${attribute}="${name}"]`);
     if (!tag) {
@@ -397,6 +594,7 @@ const GreenLoop = (() => {
     ensureShell();
     ensureGlobalFooter();
     ensureAdminShortcut();
+    ensureAdminDrawer();
     const badge = $("#session-badge");
     if (badge) {
       badge.classList.toggle("hidden", !state.user);
