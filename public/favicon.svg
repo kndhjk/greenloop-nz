@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="GreenLoop NZ">
+  <defs>
+    <linearGradient id="g" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#1fbf75"/>
+      <stop offset="100%" stop-color="#14532d"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="#f4fbf7"/>
+  <path d="M32 8 12 20v24l20 12 20-12V20Z" fill="none" stroke="url(#g)" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"/>
+  <path d="M12 20 32 32l20-12" fill="none" stroke="#1fbf75" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"/>
+  <path d="M32 56V32" fill="none" stroke="#14532d" stroke-linecap="round" stroke-width="4"/>
+</svg>

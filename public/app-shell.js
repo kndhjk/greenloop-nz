@@ -9,6 +9,88 @@ const GreenLoop = (() => {
   let dockMounted = false;
 
   const shellPages = new Set(["home", "marketplace", "sell", "services", "opportunities", "chat", "community"]);
+  const pageMeta = {
+    home: {
+      title: "GreenLoop NZ | Student Marketplace, Services, and Jobs",
+      description: "GreenLoop is a student-first platform for buying, selling, logistics help, and campus job discovery in one flow.",
+    },
+    marketplace: {
+      title: "Marketplace | GreenLoop NZ",
+      description: "Browse student listings with clearer trust, condition, pickup, and price signals.",
+    },
+    sell: {
+      title: "Sell | GreenLoop NZ",
+      description: "Publish a student listing with structured details, delivery options, and pickup windows.",
+    },
+    services: {
+      title: "Services | GreenLoop NZ",
+      description: "Book pickup, delivery, cleaning, repair, or donation support around marketplace activity.",
+    },
+    opportunities: {
+      title: "Jobs | GreenLoop NZ",
+      description: "Discover student-friendly roles, internships, and campus opportunities without leaving GreenLoop.",
+    },
+    community: {
+      title: "Community | GreenLoop NZ",
+      description: "Follow the campus feed, post updates, and keep marketplace activity connected to student community signals.",
+    },
+    chat: {
+      title: "Chat | GreenLoop NZ",
+      description: "Manage buyer-seller conversations and listing handoffs from the GreenLoop inbox.",
+    },
+    item: {
+      title: "Item Detail | GreenLoop NZ",
+      description: "Review listing details, seller trust, and service handoff options before you commit.",
+    },
+    seller: {
+      title: "Seller Profile | GreenLoop NZ",
+      description: "See seller details, active listings, and verification context before messaging or reserving.",
+    },
+    login: {
+      title: "Login | GreenLoop NZ",
+      description: "Sign in to manage listings, messages, support, and student account activity.",
+    },
+    register: {
+      title: "Register | GreenLoop NZ",
+      description: "Create a verified University of Auckland account for the GreenLoop marketplace.",
+    },
+    "forgot-password": {
+      title: "Forgot Password | GreenLoop NZ",
+      description: "Request a secure password reset for your GreenLoop account.",
+    },
+    "reset-password": {
+      title: "Reset Password | GreenLoop NZ",
+      description: "Set a new password for your GreenLoop account.",
+    },
+    help: {
+      title: "Help | GreenLoop NZ",
+      description: "Contact support, report safety issues, and ask for follow-up from the GreenLoop team.",
+    },
+    trust: {
+      title: "Trust & Safety | GreenLoop NZ",
+      description: "See how GreenLoop handles verification, moderation, uploads, and student safety signals.",
+    },
+    privacy: {
+      title: "Privacy | GreenLoop NZ",
+      description: "Understand what GreenLoop stores, why it stores it, and how support and moderation data is handled.",
+    },
+    terms: {
+      title: "Terms | GreenLoop NZ",
+      description: "Read the operating terms for listings, services, applications, and enforcement on GreenLoop.",
+    },
+    dashboard: {
+      title: "Dashboard | GreenLoop NZ",
+      description: "Manage your GreenLoop account, listings, reservations, notifications, and memberships.",
+    },
+    admin: {
+      title: "Admin | GreenLoop NZ",
+      description: "Operate moderation, support, listings, and operational workflows from the GreenLoop admin surface.",
+    },
+    "not-found": {
+      title: "Page Not Found | GreenLoop NZ",
+      description: "The requested GreenLoop page could not be found. Return to marketplace, services, jobs, or support.",
+    },
+  };
 
   const brandMark = `
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -144,6 +226,72 @@ const GreenLoop = (() => {
     document.body.appendChild(dock);
   };
 
+  const ensureGlobalFooter = () => {
+    if (document.querySelector(".site-footer")) return;
+    const footer = document.createElement("footer");
+    footer.className = "site-footer";
+    footer.innerHTML = `
+      <div class="site-footer-inner">
+        <div class="site-footer-brand">
+          <strong>GreenLoop NZ</strong>
+          <span>Student marketplace, logistics, jobs, and support in one flow.</span>
+        </div>
+        <nav class="site-footer-links" aria-label="Site links">
+          <a href="/help">Help</a>
+          <a href="/trust">Trust & Safety</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+        </nav>
+      </div>
+    `;
+    document.body.appendChild(footer);
+  };
+
+  const upsertMeta = (name, content, attribute = "name") => {
+    let tag = document.head.querySelector(`meta[${attribute}="${name}"]`);
+    if (!tag) {
+      tag = document.createElement("meta");
+      tag.setAttribute(attribute, name);
+      document.head.appendChild(tag);
+    }
+    tag.setAttribute("content", content);
+  };
+
+  const upsertLink = (rel, href) => {
+    let tag = document.head.querySelector(`link[rel="${rel}"]`);
+    if (!tag) {
+      tag = document.createElement("link");
+      tag.setAttribute("rel", rel);
+      document.head.appendChild(tag);
+    }
+    tag.setAttribute("href", href);
+  };
+
+  const ensureDocumentMeta = () => {
+    const pageKey = document.body?.dataset?.page || "home";
+    const meta = pageMeta[pageKey] || pageMeta.home;
+    const allowCanonicalSearch = new Set(["item", "seller", "marketplace", "opportunities"]);
+    const url = `${window.location.origin}${window.location.pathname}${allowCanonicalSearch.has(pageKey) ? window.location.search : ""}`;
+    const title = meta.title || document.title || "GreenLoop NZ";
+    const description = meta.description || pageMeta.home.description;
+
+    if (!(pageKey === "chat" && /^\(\d+\)/.test(document.title))) {
+      document.title = title;
+    }
+
+    upsertMeta("description", description);
+    upsertMeta("theme-color", "#14532d");
+    upsertMeta("og:title", title, "property");
+    upsertMeta("og:description", description, "property");
+    upsertMeta("og:type", "website", "property");
+    upsertMeta("og:url", url, "property");
+    upsertMeta("twitter:card", "summary_large_image");
+
+    upsertLink("canonical", url);
+    upsertLink("icon", "/favicon.svg");
+    upsertLink("manifest", "/site.webmanifest");
+  };
+
   const fallbackImageMap = {
     furniture:
       "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80",
@@ -227,7 +375,9 @@ const GreenLoop = (() => {
   };
 
   const updateChrome = () => {
+    ensureDocumentMeta();
     ensureShell();
+    ensureGlobalFooter();
     const badge = $("#session-badge");
     if (badge) {
       badge.classList.toggle("hidden", !state.user);
@@ -296,6 +446,13 @@ const GreenLoop = (() => {
     return data.user;
   };
 
+  const resolvePostAuthRedirect = (redirectAuthedTo, user = state.user) => {
+    if (!redirectAuthedTo) return null;
+    if (typeof redirectAuthedTo === "function") return redirectAuthedTo(user);
+    if (redirectAuthedTo === "/dashboard") return getPostLoginPath(user);
+    return redirectAuthedTo;
+  };
+
   const bootstrap = async ({ protectedPage = false, redirectAuthedTo = null } = {}) => {
     try {
       if (state.token) {
@@ -309,7 +466,10 @@ const GreenLoop = (() => {
     updateChrome();
 
     if (redirectAuthedTo && state.user) {
-      window.location.href = redirectAuthedTo;
+      const nextPath = resolvePostAuthRedirect(redirectAuthedTo, state.user);
+      if (nextPath) {
+        window.location.replace(nextPath);
+      }
       return null;
     }
     if (protectedPage) {
@@ -463,6 +623,11 @@ const GreenLoop = (() => {
       .join("");
   };
 
+  const getPostLoginPath = (user = state.user) => {
+    if (user?.isAdmin) return "/admin";
+    return "/dashboard";
+  };
+
   return {
     $,
     api,
@@ -478,6 +643,7 @@ const GreenLoop = (() => {
     renderOpportunities,
     renderSellerBadge,
     getListingImage,
+    getPostLoginPath,
   };
 })();
 

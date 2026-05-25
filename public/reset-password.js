@@ -2,7 +2,11 @@ const params = new URLSearchParams(window.location.search);
 const presetToken = params.get("token");
 if (presetToken) {
   const tokenInput = document.getElementById("token");
-  if (tokenInput) tokenInput.value = presetToken;
+  if (tokenInput) {
+    tokenInput.value = presetToken;
+    tokenInput.type = "hidden";
+  }
+  document.getElementById("token-hint")?.classList.add("hidden");
 }
 
 GreenLoop.$("#reset-form")?.addEventListener("submit", async (event) => {

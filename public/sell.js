@@ -39,25 +39,40 @@ const boot = async () => {
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const title = document.getElementById("item-title")?.value?.trim();
-    const description = document.getElementById("item-description")?.value?.trim();
-    const category = document.getElementById("item-category")?.value;
-    const price = document.getElementById("item-price")?.value;
-    if (!title) { GreenLoop.showToast("Please enter a title.", true); return; }
-    if (!description) { GreenLoop.showToast("Please enter a description.", true); return; }
-    if (!category) { GreenLoop.showToast("Please select a category.", true); return; }
-    if (!price || isNaN(price) || Number(price) < 0) { GreenLoop.showToast("Please enter a valid price.", true); return; }
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Publishing…"; }
+    const formElement = event.currentTarget;
     try {
-      const formElement = event.currentTarget;
       const formData = new FormData(formElement);
       const payload = Object.fromEntries(formData.entries());
-      payload.images = [uploadedItemUrl || payload.imageUrl].filter(Boolean);
+      payload.title = String(payload.title || "").trim();
+      payload.description = String(payload.description || "").trim();
+      payload.location = String(payload.location || "").trim();
+      payload.category = String(payload.category || "").trim().toLowerCase();
+      payload.conditionStatus = String(payload.conditionStatus || "").trim().toLowerCase();
+      payload.images = [uploadedItemUrl || String(payload.imageUrl || "").trim()].filter(Boolean);
       payload.deliveryOptions = String(payload.deliveryOptions || "")
         .split(",")
         .map((v) => v.trim())
         .filter(Boolean);
       payload.donationAvailable = formData.get("donationAvailable") === "on";
+      if (payload.title.length < 4) {
+        throw new Error("Title needs at least 4 characters.");
+      }
+      if (payload.description.length < 20) {
+        throw new Error("Description is too short. Add condition, defects, and pickup details.");
+      }
+      if (!payload.category) {
+        throw new Error("Choose a category.");
+      }
+      if (!payload.images.length) {
+        throw new Error("Add at least one product photo or image URL before publishing.");
+      }
+      if (!Number.isFinite(Number(payload.price)) || Number(payload.price) < 0) {
+        throw new Error("Price must be zero or higher.");
+      }
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Publishing...";
+      }
       const result = await GreenLoop.api("/api/items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -72,12 +87,10 @@ const boot = async () => {
     } catch (error) {
       GreenLoop.showToast(error.message, true);
     } finally {
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "List item"; }
-    }
-    } catch (error) {
-      GreenLoop.showToast(error.message, true);
-    } finally {
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "List item"; }
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Publish listing";
+      }
     }
   });
 };

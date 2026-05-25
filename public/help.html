@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Help | GreenLoop NZ</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-page="help">
+    <main class="page">
+      <section class="page-hero compact">
+        <div>
+          <p class="eyebrow">Support</p>
+          <h1>Get help, report a problem, or ask for admin follow-up.</h1>
+          <p class="lede">For a commercial site, users need a clear support path. This page logs requests into the admin workflow instead of leaving people stuck.</p>
+        </div>
+      </section>
+
+      <section class="content-grid single">
+        <div class="main-card">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Contact support</p>
+              <h2>Send a support request</h2>
+            </div>
+          </div>
+          <form id="support-form" class="stack-form">
+            <div class="two-col">
+              <input id="support-full-name" name="fullName" placeholder="Full name" required />
+              <input id="support-email" name="email" type="email" placeholder="Email" required />
+            </div>
+            <div class="two-col">
+              <select name="category">
+                <option value="general">General</option>
+                <option value="listing">Listing</option>
+                <option value="payment">Payment</option>
+                <option value="safety">Trust & Safety</option>
+                <option value="delivery">Delivery / Service</option>
+                <option value="jobs">Jobs / Applications</option>
+                <option value="account">Account</option>
+              </select>
+              <input name="pageUrl" placeholder="Page URL (optional)" />
+            </div>
+            <textarea name="message" placeholder="Describe the issue, what you expected, and what happened." required style="min-height:180px"></textarea>
+            <button id="support-submit" type="submit">Send support request</button>
+          </form>
+
+          <div class="info-box" style="margin-top:18px">
+            <strong>Commercial baseline</strong>
+            <p>Trust, privacy, and support pages are now first-class site links instead of hidden details. That matters if you want strangers to actually use the product.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast"></div>
+    <script src="/app-shell.js"></script>
+    <script src="/help.js"></script>
+  </body>
+</html>

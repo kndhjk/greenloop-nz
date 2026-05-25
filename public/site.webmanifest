@@ -1,0 +1,17 @@
+{
+  "name": "GreenLoop NZ",
+  "short_name": "GreenLoop",
+  "description": "Student marketplace, services, support, and campus jobs in one flow.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4fbf7",
+  "theme_color": "#14532d",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

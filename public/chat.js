@@ -2,6 +2,7 @@ const params = new URLSearchParams(window.location.search);
 
 const chatState = {
   selectedId: Number(params.get("conversation") || 0),
+  renderedMobileThreadId: 0,
   lastMessageId: 0,
   pollTimer: null,
   presenceTimer: null,
@@ -122,6 +123,7 @@ const updateHeroStats = () => {
 };
 
 const detectMobileView = () => window.innerWidth < 780;
+const isMobileComposerFocused = () => document.activeElement?.id === "chat-input-mobile";
 
 // ── Keyboard tracking for mobile ──
 let lastInnerHeight = window.innerHeight;
@@ -219,6 +221,7 @@ window._chatMessages = [];
 
 const openThreadMobile = (threadId) => {
   chatState.selectedId = threadId;
+  chatState.renderedMobileThreadId = threadId;
   history.replaceState({}, "", `/chat?conversation=${threadId}`);
 
   const stage = document.getElementById("chat-mobile-stage");
@@ -439,8 +442,10 @@ const clearPendingImage = () => {
   if (chatState.pendingImageObjectUrl) URL.revokeObjectURL(chatState.pendingImageObjectUrl);
   chatState.pendingImageObjectUrl = "";
   chatState.pendingImageFile = null;
-  document.getElementById("chat-image-input")?.removeAttribute("value");
-  document.getElementById("chat-image-input-mobile")?.removeAttribute("value");
+  const desktopInput = document.getElementById("chat-image-input");
+  const mobileInput = document.getElementById("chat-image-input-mobile");
+  if (desktopInput) desktopInput.value = "";
+  if (mobileInput) mobileInput.value = "";
 };
 
 const renderThreads = () => {
@@ -516,7 +521,6 @@ const renderThreads = () => {
 const renderMessages = (messages, currentUserId, append = false, prepend = false) => {
   const target = document.getElementById("chat-messages");
   if (!target) return;
-  window._chatMessages = messages;
 
   if (!messages.length && !append && !prepend) {
     target.innerHTML = `
@@ -651,7 +655,12 @@ const loadConversations = async () => {
   renderThreads();
   syncUnreadIndicators();
   if (chatState.isMobileView && chatState.selectedId) {
-    openThreadMobile(chatState.selectedId);
+    const mobileMessages = document.getElementById("chat-messages-mobile");
+    if (!mobileMessages || Number(chatState.renderedMobileThreadId) !== Number(chatState.selectedId)) {
+      openThreadMobile(chatState.selectedId);
+    } else if (isMobileComposerFocused() || chatState.mobileKeyboardOpen) {
+      updateMobileMessages();
+    }
   }
 };
 
@@ -732,6 +741,7 @@ const loadMessages = async (append = false) => {
   const query = append && chatState.lastMessageId ? `?afterId=${chatState.lastMessageId}` : "";
   const data = await GreenLoop.api(`/api/chats/${chatState.selectedId}/messages${query}`);
   const messages = data.messages || [];
+  const currentMessages = Array.isArray(window._chatMessages) ? window._chatMessages : [];
 
   // Skip if polling and no new messages (avoid needless DOM re-render + scroll jump)
   if (!append && chatState.lastMessageId) {
@@ -739,10 +749,14 @@ const loadMessages = async (append = false) => {
     if (latestId && Number(latestId) <= chatState.lastMessageId) return;
   }
 
+  const mergedMessages = append
+    ? [...currentMessages, ...messages.filter((message) => !currentMessages.some((current) => Number(current.id) === Number(message.id)))]
+    : messages;
+
   if (messages.length) {
     chatState.lastMessageId = messages[messages.length - 1].id;
-    chatState.oldestMessageId = messages[0].id;
-    window._chatMessages = messages;
+    chatState.oldestMessageId = mergedMessages[0]?.id || messages[0].id;
+    window._chatMessages = mergedMessages;
     const incoming = messages.filter((message) => Number(message.senderId) !== Number(GreenLoop.state.user.id));
     const newestIncomingId = incoming[incoming.length - 1]?.id || 0;
     if (append && newestIncomingId > chatState.lastIncomingMessageId) {
@@ -751,8 +765,16 @@ const loadMessages = async (append = false) => {
     } else if (!append && newestIncomingId) {
       chatState.lastIncomingMessageId = newestIncomingId;
     }
+  } else if (!append) {
+    window._chatMessages = [];
   }
-  renderMessages(messages, GreenLoop.state.user.id, append);
+  if (!append) {
+    chatState.hasMoreMessages = messages.length >= 200;
+  }
+  renderMessages(append ? messages : mergedMessages, GreenLoop.state.user.id, append);
+  if (chatState.isMobileView && Number(chatState.renderedMobileThreadId) === Number(chatState.selectedId)) {
+    updateMobileMessages();
+  }
   
   // Setup scroll for history on desktop
   if (!chatState.isMobileView) {
