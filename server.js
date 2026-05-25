@@ -34,12 +34,21 @@ const SMTP_SECURE = String(process.env.SMTP_SECURE || "1") === "1";
 const SMTP_USER = process.env.SMTP_USER || "noreply@mixport.co.nz";
 const SMTP_PASS = process.env.SMTP_PASS || "";
 const SMTP_FROM_NAME = process.env.SMTP_FROM_NAME || "GreenLoop NZ";
+const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "mzha585@aucklanduni.ac.nz";
 const JOB_CACHE_FILE = process.env.JOB_CACHE_FILE || "/home/destiny/will-have-job/jobs.json";
 const JOB_SCRAPER_DIR = process.env.JOB_SCRAPER_DIR || "/home/destiny/will-have-job";
 const JOB_SCRAPER_ENTRY = process.env.JOB_SCRAPER_ENTRY || "app.py";
 const JOB_SCRAPER_LOCK = path.join(JOB_SCRAPER_DIR, "scrape.lock");
 const JOB_SCRAPER_LOCK_MAX_AGE_MS = Number(process.env.JOB_SCRAPER_LOCK_MAX_AGE_MS || 30 * 60 * 1000);
 const CHAT_ONLINE_WINDOW_SECONDS = Number(process.env.CHAT_ONLINE_WINDOW_SECONDS || 60);
+const ALLOWED_UPLOAD_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "application/pdf",
+]);
+const ALLOWED_UPLOAD_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".pdf"]);
 
 const uploadsDir = path.join(__dirname, "uploads");
 fs.mkdirSync(uploadsDir, { recursive: true });
@@ -63,10 +72,29 @@ const upload = multer({
       cb(null, safe);
     },
   }),
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || "").toLowerCase();
+    if (!ALLOWED_UPLOAD_MIME_TYPES.has(String(file.mimetype || "").toLowerCase()) || !ALLOWED_UPLOAD_EXTENSIONS.has(ext)) {
+      return cb(new Error("Only JPG, PNG, GIF, WebP, or PDF files are allowed."));
+    }
+    cb(null, true);
+  },
   limits: { fileSize: 10 * 1024 * 1024 },
 });
 
+app.disable("x-powered-by");
 app.use(cors());
+app.use((req, res, next) => {
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self' https: data: blob:; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' https:; connect-src 'self' https:; font-src 'self' https: data:; frame-ancestors 'self'; base-uri 'self'; form-action 'self';"
+  );
+  next();
+});
 app.use(express.json({ limit: "12mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(uploadsDir));
@@ -89,6 +117,22 @@ const mailer =
     : null;
 
 const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
+const rateLimitBuckets = new Map();
+const createRateLimiter = ({ windowMs, max, message, keyFn }) => (req, res, next) => {
+  const bucketKey = keyFn ? keyFn(req) : `${req.ip}:${req.path}`;
+  const now = Date.now();
+  const current = rateLimitBuckets.get(bucketKey);
+  if (!current || now > current.resetAt) {
+    rateLimitBuckets.set(bucketKey, { count: 1, resetAt: now + windowMs });
+    return next();
+  }
+  if (current.count >= max) {
+    return res.status(429).json({ error: message || "Too many requests. Please try again later." });
+  }
+  current.count += 1;
+  next();
+};
 
 const normalizeList = (value) => {
   if (!value) return [];
@@ -278,6 +322,27 @@ const authRequired = asyncHandler(async (req, res, next) => {
   }
 });
 
+const authRateLimit = createRateLimiter({
+  windowMs: 10 * 60 * 1000,
+  max: 12,
+  message: "Too many auth requests. Please wait a few minutes and try again.",
+  keyFn: (req) => `auth:${req.ip}:${req.path}`,
+});
+
+const uploadRateLimit = createRateLimiter({
+  windowMs: 10 * 60 * 1000,
+  max: 30,
+  message: "Upload limit reached. Please wait before uploading more files.",
+  keyFn: (req) => `upload:${req.ip}:${req.user?.id || "guest"}`,
+});
+
+const supportRateLimit = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 6,
+  message: "Too many support submissions. Please wait before sending another request.",
+  keyFn: (req) => `support:${req.ip}`,
+});
+
 const verifiedRequired = (req, res, next) => {
   if (!req.user) return res.status(401).json({ error: "Authentication required." });
   if (req.user.verification_status !== "verified") {
@@ -332,6 +397,26 @@ const createNotification = async (userId, type, message, scheduledFor = null) =>
     "INSERT INTO notifications (user_id, type, message, scheduled_for, status) VALUES (?, ?, ?, ?, 'pending')",
     [userId, type, message, scheduledFor]
   );
+};
+
+const getAdminUserIds = async () => {
+  if (!ADMIN_EMAILS.length) return [];
+  const placeholders = ADMIN_EMAILS.map(() => "?").join(",");
+  const [rows] = await pool.execute(
+    `SELECT id
+     FROM users
+     WHERE LOWER(email) IN (${placeholders})`,
+    ADMIN_EMAILS
+  );
+  return rows.map((row) => Number(row.id)).filter(Boolean);
+};
+
+const notifyAdmins = async (type, message, skipUserId = null) => {
+  const adminIds = await getAdminUserIds();
+  const uniqueIds = Array.from(new Set(adminIds)).filter((userId) => Number(userId) !== Number(skipUserId || 0));
+  if (!uniqueIds.length) return 0;
+  await Promise.all(uniqueIds.map((userId) => createNotification(userId, type, message)));
+  return uniqueIds.length;
 };
 
 const mapConversationRow = (row, currentUserId) => {
@@ -597,6 +682,20 @@ const ensureSchema = async () => {
       created_by INT DEFAULT NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS opportunity_applications (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      opportunity_id INT NOT NULL,
+      user_id INT NOT NULL,
+      applicant_name VARCHAR(180) NOT NULL,
+      applicant_email VARCHAR(180) NOT NULL,
+      applicant_phone VARCHAR(80) DEFAULT NULL,
+      cover_message TEXT,
+      cv_url TEXT DEFAULT NULL,
+      status ENUM('submitted', 'reviewed', 'rejected') NOT NULL DEFAULT 'submitted',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_opp_application_opportunity FOREIGN KEY (opportunity_id) REFERENCES opportunities(id) ON DELETE CASCADE,
+      CONSTRAINT fk_opp_application_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS memberships (
       id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
       user_id INT NOT NULL,
@@ -616,6 +715,18 @@ const ensureSchema = async () => {
       status ENUM('pending', 'sent') NOT NULL DEFAULT 'pending',
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT fk_notification_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS support_requests (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      user_id INT DEFAULT NULL,
+      full_name VARCHAR(180) NOT NULL,
+      email VARCHAR(190) NOT NULL,
+      category VARCHAR(80) NOT NULL,
+      page_url VARCHAR(255) DEFAULT NULL,
+      message TEXT NOT NULL,
+      status ENUM('open', 'reviewing', 'resolved') NOT NULL DEFAULT 'open',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_support_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS community_posts (
       id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -674,6 +785,7 @@ const ensureSchema = async () => {
   await ensureColumn("users", "avatar_url", "avatar_url TEXT NULL AFTER student_id");
   await ensureColumn("conversation_messages", "image_url", "image_url TEXT NULL AFTER body");
   await ensureColumn("user_presence", "is_online", "is_online TINYINT(1) NOT NULL DEFAULT 1 AFTER last_seen_at");
+  await ensureColumn("opportunities", "apply_url", "apply_url TEXT NULL AFTER summary");
   await ensureBootstrapAdmin();
 
   const [countRows] = await pool.execute("SELECT COUNT(*) AS count FROM opportunities");
@@ -719,6 +831,7 @@ app.get("/api/health", (_req, res) => {
 app.post(
   "/api/uploads",
   authRequired,
+  uploadRateLimit,
   upload.single("file"),
   asyncHandler(async (req, res) => {
     if (!req.file) return res.status(400).json({ error: "File is required." });
@@ -728,6 +841,7 @@ app.post(
 
 app.post(
   "/api/auth/register/start",
+  authRateLimit,
   asyncHandler(async (req, res) => {
     const { fullName, email, password, schoolName, studentId, avatarDataUrl } = req.body;
     if (!fullName || !email || !password || !schoolName || !studentId) {
@@ -787,6 +901,7 @@ app.post(
 
 app.post(
   "/api/auth/register/verify",
+  authRateLimit,
   asyncHandler(async (req, res) => {
     const normalizedEmail = String(req.body.email || "").trim().toLowerCase();
     const normalizedCode = String(req.body.code || "").trim();
@@ -835,6 +950,7 @@ app.post(
 
 app.post(
   "/api/auth/login",
+  authRateLimit,
   asyncHandler(async (req, res) => {
     const { email, password } = req.body;
     const normalizedEmail = String(email || "").trim().toLowerCase();
@@ -855,6 +971,7 @@ app.post(
 
 app.post(
   "/api/auth/forgot-password",
+  authRateLimit,
   asyncHandler(async (req, res) => {
     const normalizedEmail = String(req.body.email || "").trim().toLowerCase();
     if (!normalizedEmail) {
@@ -885,6 +1002,7 @@ app.post(
 
 app.post(
   "/api/auth/reset-password",
+  authRateLimit,
   asyncHandler(async (req, res) => {
     const { token, password } = req.body;
     if (!token || !password) {
@@ -920,6 +1038,40 @@ app.get(
   authRequired,
   asyncHandler(async (req, res) => {
     res.json({ user: sanitizeUser(req.user) });
+  })
+);
+
+app.post(
+  "/api/support",
+  supportRateLimit,
+  asyncHandler(async (req, res) => {
+    const fullName = cleanText(req.body.fullName || req.user?.full_name, 180);
+    const email = String(req.body.email || req.user?.email || "").trim().toLowerCase();
+    const category = cleanText(req.body.category, 80) || "general";
+    const pageUrl = cleanText(req.body.pageUrl, 255);
+    const message = cleanText(req.body.message, 4000);
+
+    if (!fullName || !email || !message) {
+      return res.status(400).json({ error: "Name, email, and message are required." });
+    }
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ error: "Enter a valid support email address." });
+    }
+    if (message.length < 12) {
+      return res.status(400).json({ error: "Support message is too short." });
+    }
+
+    const [result] = await pool.execute(
+      `INSERT INTO support_requests (user_id, full_name, email, category, page_url, message)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [req.user?.id || null, fullName, email, category, pageUrl || null, message]
+    );
+    await notifyAdmins("support", `${fullName} submitted a ${category} support request.`, req.user?.id || null);
+    if (req.user?.id) {
+      await createNotification(req.user.id, "support", "Your support request was received.");
+      await logUserActivity(req, req.user.id, "support_request_create", "support_request", result.insertId, { category, pageUrl });
+    }
+    res.status(201).json({ ok: true, id: result.insertId, supportEmail: SUPPORT_EMAIL });
   })
 );
 
@@ -1073,11 +1225,22 @@ app.get(
   authRequired,
   adminRequired,
   asyncHandler(async (_req, res) => {
-    const [userRows, postRows, activityRows, pendingRows] = await Promise.all([
+    const [userRows, postRows, activityRows, pendingRows, opsRows, applicationRows, supportRows] = await Promise.all([
       pool.execute("SELECT COUNT(*) AS count FROM users"),
       pool.execute("SELECT COUNT(*) AS count FROM community_posts"),
       pool.execute("SELECT COUNT(*) AS count FROM user_activity_logs"),
       pool.execute("SELECT COUNT(*) AS count FROM users WHERE verification_status = 'pending'"),
+      pool.execute(
+        `SELECT
+           (
+             (SELECT COUNT(*) FROM reservations) +
+             (SELECT COUNT(*) FROM delivery_requests) +
+             (SELECT COUNT(*) FROM service_requests) +
+             (SELECT COUNT(*) FROM donations)
+           ) AS count`
+      ),
+      pool.execute("SELECT COUNT(*) AS count FROM opportunity_applications"),
+      pool.execute("SELECT COUNT(*) AS count FROM support_requests"),
     ]);
     res.json({
       totals: {
@@ -1085,8 +1248,62 @@ app.get(
         posts: Number(postRows[0][0]?.count || 0),
         activity: Number(activityRows[0][0]?.count || 0),
         pendingVerifications: Number(pendingRows[0][0]?.count || 0),
+        opsRequests: Number(opsRows[0][0]?.count || 0),
+        applications: Number(applicationRows[0][0]?.count || 0),
+        supportRequests: Number(supportRows[0][0]?.count || 0),
       },
     });
+  })
+);
+
+app.get(
+  "/api/admin/support-requests",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (_req, res) => {
+    const [rows] = await pool.execute(
+      `SELECT *
+       FROM support_requests
+       ORDER BY created_at DESC
+       LIMIT 200`
+    );
+    res.json({
+      requests: rows.map((row) => ({
+        id: row.id,
+        userId: row.user_id,
+        fullName: row.full_name,
+        email: row.email,
+        category: row.category,
+        pageUrl: row.page_url || "",
+        message: row.message,
+        status: row.status,
+        createdAt: row.created_at,
+      })),
+    });
+  })
+);
+
+app.post(
+  "/api/admin/support-requests/:id/status",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (req, res) => {
+    const supportRequestId = Number(req.params.id);
+    const status = cleanText(req.body.status, 40);
+    if (!["open", "reviewing", "resolved"].includes(status)) {
+      return res.status(400).json({ error: "Unsupported support status." });
+    }
+    const [rows] = await pool.execute("SELECT * FROM support_requests WHERE id = ? LIMIT 1", [supportRequestId]);
+    const supportRequest = rows[0];
+    if (!supportRequest) {
+      return res.status(404).json({ error: "Support request not found." });
+    }
+    await pool.execute("UPDATE support_requests SET status = ? WHERE id = ?", [status, supportRequestId]);
+    if (supportRequest.user_id) {
+      await createNotification(supportRequest.user_id, "support", `Your support request is now ${status}.`);
+    }
+    await logUserActivity(req, req.user.id, "admin_support_status_update", "support_request", supportRequestId, { status });
+    res.json({ ok: true });
   })
 );
 
@@ -1244,6 +1461,458 @@ app.get(
         actor: row.full_name ? { fullName: row.full_name, email: row.email } : null,
       })),
     });
+  })
+);
+
+app.get(
+  "/api/admin/ops-requests",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (_req, res) => {
+    const [reservationRows, deliveryRows, serviceRows, donationRows] = await Promise.all([
+      pool.execute(
+        `SELECT
+           'reservation' AS request_type,
+           r.id,
+           r.status,
+           r.note AS details,
+           r.created_at,
+           r.pickup_time AS requested_time,
+           i.id AS item_id,
+           i.title AS item_title,
+           buyer.full_name AS requester_name,
+           buyer.email AS requester_email
+         FROM reservations r
+         JOIN items i ON i.id = r.item_id
+         JOIN users buyer ON buyer.id = r.buyer_id
+         ORDER BY r.created_at DESC
+         LIMIT 100`
+      ),
+      pool.execute(
+        `SELECT
+           'delivery' AS request_type,
+           d.id,
+           d.status,
+           CONCAT(d.delivery_type, ' · ', d.from_location, ' → ', d.to_location, IFNULL(CONCAT(' · ', d.notes), '')) AS details,
+           d.created_at,
+           NULL AS requested_time,
+           d.item_id,
+           i.title AS item_title,
+           u.full_name AS requester_name,
+           u.email AS requester_email
+         FROM delivery_requests d
+         LEFT JOIN items i ON i.id = d.item_id
+         JOIN users u ON u.id = d.user_id
+         ORDER BY d.created_at DESC
+         LIMIT 100`
+      ),
+      pool.execute(
+        `SELECT
+           'service' AS request_type,
+           s.id,
+           s.status,
+           CONCAT(s.service_type, IFNULL(CONCAT(' · ', s.notes), '')) AS details,
+           s.created_at,
+           NULL AS requested_time,
+           s.item_id,
+           i.title AS item_title,
+           u.full_name AS requester_name,
+           u.email AS requester_email
+         FROM service_requests s
+         LEFT JOIN items i ON i.id = s.item_id
+         JOIN users u ON u.id = s.user_id
+         ORDER BY s.created_at DESC
+         LIMIT 100`
+      ),
+      pool.execute(
+        `SELECT
+           'donation' AS request_type,
+           d.id,
+           d.status,
+           CONCAT(d.org_name, IFNULL(CONCAT(' · ', d.notes), '')) AS details,
+           d.created_at,
+           NULL AS requested_time,
+           d.item_id,
+           i.title AS item_title,
+           u.full_name AS requester_name,
+           u.email AS requester_email
+         FROM donations d
+         LEFT JOIN items i ON i.id = d.item_id
+         JOIN users u ON u.id = d.user_id
+         ORDER BY d.created_at DESC
+         LIMIT 100`
+      ),
+    ]);
+
+    const requests = [
+      ...reservationRows[0],
+      ...deliveryRows[0],
+      ...serviceRows[0],
+      ...donationRows[0],
+    ]
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .slice(0, 200)
+      .map((row) => ({
+        id: row.id,
+        type: row.request_type,
+        status: row.status,
+        details: row.details || "",
+        createdAt: row.created_at,
+        requestedTime: row.requested_time,
+        itemId: row.item_id,
+        itemTitle: row.item_title || "",
+        requesterName: row.requester_name || "",
+        requesterEmail: row.requester_email || "",
+      }));
+
+    res.json({ requests });
+  })
+);
+
+app.post(
+  "/api/admin/ops-requests/:type/:id/status",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (req, res) => {
+    const requestType = String(req.params.type || "").trim().toLowerCase();
+    const requestId = Number(req.params.id);
+    const nextStatus = String(req.body.status || "").trim();
+
+    const configMap = {
+      reservation: {
+        table: "reservations",
+        allowed: ["pending", "confirmed", "completed", "cancelled"],
+        selectSql: `SELECT r.*, i.title AS item_title
+          FROM reservations r
+          JOIN items i ON i.id = r.item_id
+          WHERE r.id = ?
+          LIMIT 1`,
+        applyStatus: async (entry) => {
+          await pool.execute("UPDATE reservations SET status = ? WHERE id = ?", [nextStatus, requestId]);
+          if (nextStatus === "cancelled") {
+            await pool.execute("UPDATE items SET status = 'available' WHERE id = ?", [entry.item_id]);
+          } else if (nextStatus === "completed") {
+            await pool.execute("UPDATE items SET status = 'completed' WHERE id = ?", [entry.item_id]);
+          } else {
+            await pool.execute("UPDATE items SET status = 'reserved' WHERE id = ?", [entry.item_id]);
+          }
+          await createNotification(entry.buyer_id, "pickup-status", `Reservation for "${entry.item_title}" is now ${nextStatus}.`);
+          await createNotification(entry.seller_id, "pickup-status", `Reservation for "${entry.item_title}" is now ${nextStatus}.`);
+        },
+      },
+      delivery: {
+        table: "delivery_requests",
+        allowed: ["requested", "scheduled", "completed"],
+        selectSql: "SELECT * FROM delivery_requests WHERE id = ? LIMIT 1",
+        applyStatus: async (entry) => {
+          await pool.execute("UPDATE delivery_requests SET status = ? WHERE id = ?", [nextStatus, requestId]);
+          await createNotification(entry.user_id, "delivery-status", `Delivery request is now ${nextStatus}.`);
+        },
+      },
+      service: {
+        table: "service_requests",
+        allowed: ["requested", "in_progress", "completed"],
+        selectSql: "SELECT * FROM service_requests WHERE id = ? LIMIT 1",
+        applyStatus: async (entry) => {
+          await pool.execute("UPDATE service_requests SET status = ? WHERE id = ?", [nextStatus, requestId]);
+          await createNotification(entry.user_id, "service-status", `Service request is now ${nextStatus}.`);
+        },
+      },
+      donation: {
+        table: "donations",
+        allowed: ["submitted", "accepted", "completed"],
+        selectSql: "SELECT * FROM donations WHERE id = ? LIMIT 1",
+        applyStatus: async (entry) => {
+          await pool.execute("UPDATE donations SET status = ? WHERE id = ?", [nextStatus, requestId]);
+          await createNotification(entry.user_id, "donation-status", `Donation request is now ${nextStatus}.`);
+        },
+      },
+    };
+
+    const config = configMap[requestType];
+    if (!config || !requestId) {
+      return res.status(400).json({ error: "Unsupported operations request." });
+    }
+    if (!config.allowed.includes(nextStatus)) {
+      return res.status(400).json({ error: "Unsupported status for this request type." });
+    }
+
+    const [rows] = await pool.execute(config.selectSql, [requestId]);
+    const entry = rows[0];
+    if (!entry) {
+      return res.status(404).json({ error: "Operations request not found." });
+    }
+
+    await config.applyStatus(entry);
+    await logUserActivity(req, req.user.id, "admin_ops_status_update", config.table, requestId, {
+      requestType,
+      status: nextStatus,
+    });
+    res.json({ ok: true });
+  })
+);
+
+app.get(
+  "/api/admin/items",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (req, res) => {
+    const query = cleanText(req.query.q, 120);
+    const filters = ["1=1"];
+    const params = [];
+    if (query) {
+      filters.push("(i.title LIKE ? OR i.location LIKE ? OR u.full_name LIKE ? OR u.email LIKE ?)");
+      params.push(`%${query}%`, `%${query}%`, `%${query}%`, `%${query}%`);
+    }
+    const [rows] = await pool.execute(
+      `SELECT
+         i.*,
+         u.full_name AS seller_name,
+         u.email AS seller_email
+       FROM items i
+       JOIN users u ON u.id = i.seller_id
+       WHERE ${filters.join(" AND ")}
+       ORDER BY i.created_at DESC
+       LIMIT 200`,
+      params
+    );
+    res.json({
+      items: rows.map((row) => ({
+        id: row.id,
+        sellerId: row.seller_id,
+        sellerName: row.seller_name,
+        sellerEmail: row.seller_email,
+        title: row.title,
+        description: row.description,
+        category: row.category,
+        location: row.location,
+        price: Number(row.price || 0),
+        conditionStatus: row.condition_status,
+        pickupWindows: row.pickup_windows || "",
+        images: normalizeList(row.images_json),
+        deliveryOptions: normalizeList(row.delivery_options_json),
+        donationAvailable: !!row.donation_available,
+        status: row.status,
+        createdAt: row.created_at,
+      })),
+    });
+  })
+);
+
+app.patch(
+  "/api/admin/items/:id",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (req, res) => {
+    const itemId = Number(req.params.id);
+    const [rows] = await pool.execute("SELECT * FROM items WHERE id = ? LIMIT 1", [itemId]);
+    const item = rows[0];
+    if (!item) return res.status(404).json({ error: "Item not found." });
+
+    const title = cleanText(req.body.title, 180) || item.title;
+    const description = cleanText(req.body.description, 4000) || item.description;
+    const category = cleanText(req.body.category, 80) || item.category;
+    const location = cleanText(req.body.location, 180) || item.location;
+    const conditionStatus = cleanText(req.body.conditionStatus, 80) || item.condition_status;
+    const pickupWindows = cleanText(req.body.pickupWindows, 255) || "";
+    const status = cleanText(req.body.status, 40) || item.status;
+    const price = req.body.price == null || req.body.price === "" ? Number(item.price) : Number(req.body.price);
+    const images = normalizeList(req.body.images);
+    const deliveryOptions = normalizeList(req.body.deliveryOptions);
+    const donationAvailable = req.body.donationAvailable ? 1 : 0;
+
+    if (!["available", "reserved", "donated", "completed"].includes(status)) {
+      return res.status(400).json({ error: "Unsupported item status." });
+    }
+    if (!Number.isFinite(price) || price < 0) {
+      return res.status(400).json({ error: "Price must be zero or higher." });
+    }
+
+    await pool.execute(
+      `UPDATE items
+       SET title = ?, description = ?, category = ?, location = ?, price = ?, condition_status = ?, pickup_windows = ?,
+           images_json = ?, delivery_options_json = ?, donation_available = ?, status = ?
+       WHERE id = ?`,
+      [
+        title,
+        description,
+        category,
+        location,
+        price,
+        conditionStatus,
+        pickupWindows,
+        JSON.stringify(images),
+        JSON.stringify(deliveryOptions),
+        donationAvailable,
+        status,
+        itemId,
+      ]
+    );
+    await logUserActivity(req, req.user.id, "admin_item_update", "item", itemId, { status, price });
+    res.json({ ok: true });
+  })
+);
+
+app.delete(
+  "/api/admin/items/:id",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (req, res) => {
+    const itemId = Number(req.params.id);
+    const [rows] = await pool.execute("SELECT title, seller_id FROM items WHERE id = ? LIMIT 1", [itemId]);
+    const item = rows[0];
+    if (!item) return res.status(404).json({ error: "Item not found." });
+    await pool.execute("DELETE FROM items WHERE id = ?", [itemId]);
+    await createNotification(item.seller_id, "listing", `Your listing "${item.title}" was removed by admin.`);
+    await logUserActivity(req, req.user.id, "admin_item_delete", "item", itemId, { title: item.title });
+    res.json({ ok: true });
+  })
+);
+
+app.get(
+  "/api/admin/opportunities",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (req, res) => {
+    const [rows] = await pool.execute(
+      `SELECT
+         o.*,
+         u.full_name AS creator_name,
+         u.email AS creator_email,
+         COUNT(oa.id) AS application_count
+       FROM opportunities o
+       LEFT JOIN users u ON u.id = o.created_by
+       LEFT JOIN opportunity_applications oa ON oa.opportunity_id = o.id
+       GROUP BY o.id
+       ORDER BY o.created_at DESC
+       LIMIT 200`
+    );
+    res.json({
+      opportunities: rows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        orgName: row.org_name,
+        opportunityType: row.opportunity_type,
+        location: row.location,
+        skills: normalizeList(row.skills_json),
+        summary: row.summary,
+        applyUrl: row.apply_url || "",
+        creatorName: row.creator_name || "",
+        creatorEmail: row.creator_email || "",
+        applicationCount: Number(row.application_count || 0),
+        createdAt: row.created_at,
+      })),
+    });
+  })
+);
+
+app.patch(
+  "/api/admin/opportunities/:id",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (req, res) => {
+    const opportunityId = Number(req.params.id);
+    const [rows] = await pool.execute("SELECT * FROM opportunities WHERE id = ? LIMIT 1", [opportunityId]);
+    const existing = rows[0];
+    if (!existing) return res.status(404).json({ error: "Opportunity not found." });
+
+    const title = cleanText(req.body.title, 180) || existing.title;
+    const orgName = cleanText(req.body.orgName, 180) || existing.org_name;
+    const opportunityType = cleanText(req.body.opportunityType, 40) || existing.opportunity_type;
+    const location = cleanText(req.body.location, 180) || existing.location;
+    const summary = cleanText(req.body.summary, 4000) || existing.summary;
+    const applyUrl = cleanText(req.body.applyUrl, 2000);
+    const skills = normalizeList(req.body.skills);
+
+    if (!["internship", "volunteer"].includes(opportunityType)) {
+      return res.status(400).json({ error: "Unsupported opportunity type." });
+    }
+
+    await pool.execute(
+      `UPDATE opportunities
+       SET title = ?, org_name = ?, opportunity_type = ?, location = ?, skills_json = ?, summary = ?, apply_url = ?
+       WHERE id = ?`,
+      [title, orgName, opportunityType, location, JSON.stringify(skills), summary, applyUrl || "", opportunityId]
+    );
+    await logUserActivity(req, req.user.id, "admin_opportunity_update", "opportunity", opportunityId, { opportunityType, orgName });
+    res.json({ ok: true });
+  })
+);
+
+app.delete(
+  "/api/admin/opportunities/:id",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (req, res) => {
+    const opportunityId = Number(req.params.id);
+    const [rows] = await pool.execute("SELECT title FROM opportunities WHERE id = ? LIMIT 1", [opportunityId]);
+    const opportunity = rows[0];
+    if (!opportunity) return res.status(404).json({ error: "Opportunity not found." });
+    await pool.execute("DELETE FROM opportunities WHERE id = ?", [opportunityId]);
+    await logUserActivity(req, req.user.id, "admin_opportunity_delete", "opportunity", opportunityId, { title: opportunity.title });
+    res.json({ ok: true });
+  })
+);
+
+app.get(
+  "/api/admin/opportunity-applications",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (_req, res) => {
+    const [rows] = await pool.execute(
+      `SELECT
+         oa.*,
+         o.title AS opportunity_title,
+         o.org_name,
+         u.full_name AS user_full_name,
+         u.email AS user_email
+       FROM opportunity_applications oa
+       JOIN opportunities o ON o.id = oa.opportunity_id
+       JOIN users u ON u.id = oa.user_id
+       ORDER BY oa.created_at DESC
+       LIMIT 200`
+    );
+    res.json({
+      applications: rows.map((row) => ({
+        id: row.id,
+        opportunityId: row.opportunity_id,
+        opportunityTitle: row.opportunity_title,
+        orgName: row.org_name,
+        applicantName: row.applicant_name,
+        applicantEmail: row.applicant_email,
+        applicantPhone: row.applicant_phone || "",
+        coverMessage: row.cover_message || "",
+        cvUrl: row.cv_url || "",
+        status: row.status,
+        createdAt: row.created_at,
+        user: {
+          fullName: row.user_full_name,
+          email: row.user_email,
+        },
+      })),
+    });
+  })
+);
+
+app.post(
+  "/api/admin/opportunity-applications/:id/status",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (req, res) => {
+    const applicationId = Number(req.params.id);
+    const status = String(req.body.status || "");
+    if (!["submitted", "reviewed", "rejected"].includes(status)) {
+      return res.status(400).json({ error: "Unsupported application status." });
+    }
+    const [rows] = await pool.execute("SELECT * FROM opportunity_applications WHERE id = ? LIMIT 1", [applicationId]);
+    const application = rows[0];
+    if (!application) {
+      return res.status(404).json({ error: "Application not found." });
+    }
+    await pool.execute("UPDATE opportunity_applications SET status = ? WHERE id = ?", [status, applicationId]);
+    await createNotification(application.user_id, "job-application", `Your application status is now ${status}.`);
+    await logUserActivity(req, req.user.id, "opportunity_application_status", "opportunity_application", applicationId, { status });
+    res.json({ ok: true });
   })
 );
 
@@ -1449,6 +2118,8 @@ app.post(
     await pool.execute("UPDATE items SET status = 'reserved' WHERE id = ?", [itemId]);
     await createNotification(item.seller_id, "pickup-booked", `Pickup requested for "${item.title}" on ${pickupTime}.`);
     await createNotification(req.user.id, "pickup-confirmed", `Reservation placed for "${item.title}".`);
+    await notifyAdmins("ops-request", `${req.user.full_name} reserved "${item.title}" for ${pickupTime}.`, req.user.id);
+    await logUserActivity(req, req.user.id, "reservation_create", "reservation", result.insertId, { itemId: Number(itemId) });
 
     res.status(201).json({ id: result.insertId });
   })
@@ -1565,6 +2236,7 @@ app.get(
   asyncHandler(async (req, res) => {
     const conversationId = Number(req.params.id);
     const afterId = Number(req.query.afterId || 0);
+    const beforeId = Number(req.query.beforeId || 0);
     const [conversations] = await pool.execute("SELECT * FROM conversations WHERE id = ? LIMIT 1", [conversationId]);
     const conversation = conversations[0];
     if (!conversation) return res.status(404).json({ error: "Conversation not found." });
@@ -1572,18 +2244,36 @@ app.get(
       return res.status(403).json({ error: "Not allowed." });
     }
 
-    const [messages] = await pool.execute(
-      `SELECT
-         m.*,
-         u.full_name AS sender_name,
-         u.avatar_url AS sender_avatar_url
-       FROM conversation_messages m
-       JOIN users u ON u.id = m.sender_id
-       WHERE m.conversation_id = ? AND m.id > ?
-       ORDER BY m.id ASC
-       LIMIT 200`,
-      [conversationId, afterId]
-    );
+    let messages = [];
+    if (beforeId > 0) {
+      const [olderRows] = await pool.execute(
+        `SELECT
+           m.*,
+           u.full_name AS sender_name,
+           u.avatar_url AS sender_avatar_url
+         FROM conversation_messages m
+         JOIN users u ON u.id = m.sender_id
+         WHERE m.conversation_id = ? AND m.id < ?
+         ORDER BY m.id DESC
+         LIMIT 200`,
+        [conversationId, beforeId]
+      );
+      messages = olderRows.reverse();
+    } else {
+      const [newerRows] = await pool.execute(
+        `SELECT
+           m.*,
+           u.full_name AS sender_name,
+           u.avatar_url AS sender_avatar_url
+         FROM conversation_messages m
+         JOIN users u ON u.id = m.sender_id
+         WHERE m.conversation_id = ? AND m.id > ?
+         ORDER BY m.id ASC
+         LIMIT 200`,
+        [conversationId, afterId]
+      );
+      messages = newerRows;
+    }
 
     await pool.execute(
       `UPDATE conversation_messages
@@ -1741,6 +2431,15 @@ app.post(
     );
 
     await createNotification(req.user.id, "delivery", `Delivery request submitted. Estimated fee: NZ$${feeEstimate}.`);
+    await notifyAdmins(
+      "ops-request",
+      `${req.user.full_name} requested ${deliveryType} delivery from ${fromLocation} to ${toLocation}.`,
+      req.user.id
+    );
+    await logUserActivity(req, req.user.id, "delivery_request_create", "delivery_request", result.insertId, {
+      itemId: itemId ? Number(itemId) : null,
+      deliveryType,
+    });
     res.status(201).json({ id: result.insertId, feeEstimate });
   })
 );
@@ -1759,6 +2458,11 @@ app.post(
       [itemId || null, req.user.id, serviceType, notes || ""]
     );
     await createNotification(req.user.id, "service", `${serviceType} request submitted.`);
+    await notifyAdmins("ops-request", `${req.user.full_name} requested ${serviceType} service.`, req.user.id);
+    await logUserActivity(req, req.user.id, "service_request_create", "service_request", result.insertId, {
+      itemId: itemId ? Number(itemId) : null,
+      serviceType,
+    });
     res.status(201).json({ id: result.insertId });
   })
 );
@@ -1809,6 +2513,11 @@ app.post(
     }
 
     await createNotification(req.user.id, "donation", `Donation request submitted to ${orgName}.`);
+    await notifyAdmins("ops-request", `${req.user.full_name} submitted a donation request to ${orgName}.`, req.user.id);
+    await logUserActivity(req, req.user.id, "donation_request_create", "donation", result.insertId, {
+      itemId: itemId ? Number(itemId) : null,
+      orgName,
+    });
     res.status(201).json({ id: result.insertId });
   })
 );
@@ -1899,6 +2608,7 @@ app.get(
 app.post(
   "/api/opportunities",
   authRequired,
+  adminRequired,
   asyncHandler(async (req, res) => {
     const { title, orgName, opportunityType, location, skills, summary, applyUrl } = req.body;
     if (!title || !orgName || !opportunityType || !location || !summary) {
@@ -1910,6 +2620,54 @@ app.post(
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [title, orgName, opportunityType, location, JSON.stringify(normalizeList(skills)), summary, applyUrl || "", req.user.id]
     );
+    await notifyAdmins("job-post", `${req.user.full_name} posted a new opportunity: ${title}.`, req.user.id);
+    await logUserActivity(req, req.user.id, "opportunity_create", "opportunity", result.insertId, { opportunityType, orgName });
+    res.status(201).json({ id: result.insertId });
+  })
+);
+
+app.post(
+  "/api/opportunity-applications",
+  authRequired,
+  asyncHandler(async (req, res) => {
+    const opportunityId = Number(req.body.opportunityId);
+    const applicantName = cleanText(req.body.applicantName, 180) || cleanText(req.user.full_name, 180);
+    const applicantEmail = String(req.body.applicantEmail || req.user.email || "").trim().toLowerCase();
+    const applicantPhone = cleanText(req.body.applicantPhone, 80);
+    const coverMessage = cleanText(req.body.coverMessage, 4000);
+    const cvUrl = cleanText(req.body.cvUrl, 2000);
+
+    if (!opportunityId || !applicantName || !applicantEmail) {
+      return res.status(400).json({ error: "Opportunity, name, and email are required." });
+    }
+    if (!isValidEmail(applicantEmail)) {
+      return res.status(400).json({ error: "A valid email is required." });
+    }
+
+    const [opportunityRows] = await pool.execute("SELECT id, title, org_name FROM opportunities WHERE id = ? LIMIT 1", [opportunityId]);
+    const opportunity = opportunityRows[0];
+    if (!opportunity) {
+      return res.status(404).json({ error: "Opportunity not found." });
+    }
+
+    const [result] = await pool.execute(
+      `INSERT INTO opportunity_applications
+        (opportunity_id, user_id, applicant_name, applicant_email, applicant_phone, cover_message, cv_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [opportunityId, req.user.id, applicantName, applicantEmail, applicantPhone || "", coverMessage || "", cvUrl || ""]
+    );
+
+    await createNotification(req.user.id, "job-application", `Application submitted for "${opportunity.title}".`);
+    await notifyAdmins(
+      "job-application",
+      `${applicantName} applied for "${opportunity.title}" at ${opportunity.org_name}.`,
+      req.user.id
+    );
+    await logUserActivity(req, req.user.id, "opportunity_application_create", "opportunity_application", result.insertId, {
+      opportunityId,
+      hasCv: !!cvUrl,
+    });
+
     res.status(201).json({ id: result.insertId });
   })
 );
@@ -1923,6 +2681,10 @@ const pageRoutes = {
   "/register": "register.html",
   "/forgot-password": "forgot-password.html",
   "/reset-password": "reset-password.html",
+  "/help": "help.html",
+  "/privacy": "privacy.html",
+  "/terms": "terms.html",
+  "/trust": "trust.html",
   "/item": "item.html",
   "/dashboard": "dashboard.html",
   "/sell": "sell.html",

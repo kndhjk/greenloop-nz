@@ -165,6 +165,26 @@
     <!-- GreenLoop Opportunities -->
     <section class="jobs-main" style="padding-top:20px">
       <div class="section-divider"><h2>🎓 Campus Opportunities</h2></div>
+      <div id="opportunity-admin-panel" class="main-card" style="display:none;margin-bottom:16px">
+        <div class="results-header" style="margin-bottom:12px">
+          <h2 style="margin:0">Post a new opportunity</h2>
+          <span class="results-count">Admin only</span>
+        </div>
+        <form id="opportunity-post-form" class="stack-form">
+          <div class="two-col">
+            <input name="title" placeholder="Role title" required />
+            <input name="orgName" placeholder="Organisation" required />
+          </div>
+          <div class="two-col">
+            <input name="location" list="opportunity-location-options" placeholder="Location" required />
+            <input name="opportunityType" list="opportunity-type-options" placeholder="Type: internship / volunteer" required />
+          </div>
+          <input name="skills" placeholder="Skills: comma,separated,values" />
+          <input name="applyUrl" placeholder="External apply URL (optional)" />
+          <textarea name="summary" placeholder="Role summary" required style="min-height:120px"></textarea>
+          <button id="opportunity-post-button" class="search-btn" type="submit">Post opportunity</button>
+        </form>
+      </div>
       <div id="gl-opportunities" class="gl-opportunities">
         <div class="loading-state"><div class="spinner"></div><p>Loading...</p></div>
       </div>
@@ -206,7 +226,44 @@
   </main>
 
   <div id="toast" class="toast"></div>
+  <dialog id="opportunity-apply-dialog" style="max-width:640px;width:min(92vw,640px);border:none;border-radius:20px;padding:0;overflow:hidden">
+    <div style="margin:0;background:#fff">
+      <div style="padding:20px 22px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
+        <div>
+          <p class="eyebrow" style="margin:0 0 6px">Apply to role</p>
+          <h2 id="opportunity-apply-title" style="margin:0;font-size:20px">Opportunity</h2>
+        </div>
+        <button id="opportunity-apply-close" type="button" class="btn-ghost">Close</button>
+      </div>
+      <div style="padding:20px 22px">
+        <form id="opportunity-apply-form" class="stack-form">
+          <input name="applicantName" placeholder="Your name" required />
+          <div class="two-col">
+            <input name="applicantEmail" type="email" placeholder="Email" required />
+            <input name="applicantPhone" placeholder="Phone / WhatsApp" />
+          </div>
+          <label class="upload">
+            <span>Upload PDF CV</span>
+            <input id="opportunity-cv-upload" type="file" accept="application/pdf" />
+          </label>
+          <textarea name="coverMessage" placeholder="Short message to the admin / employer" style="min-height:140px"></textarea>
+          <button id="opportunity-apply-button" class="search-btn" type="submit">Send application</button>
+        </form>
+      </div>
+    </div>
+  </dialog>
+  <datalist id="opportunity-location-options">
+    <option value="Auckland"></option>
+    <option value="Auckland CBD"></option>
+    <option value="Remote"></option>
+    <option value="Hybrid"></option>
+  </datalist>
+  <datalist id="opportunity-type-options">
+    <option value="internship"></option>
+    <option value="volunteer"></option>
+  </datalist>
   <script src="/app-shell.js"></script>
+  <script src="/opportunities.js?v=20260525a"></script>
   <script>
   (function() {
     const $ = s => document.querySelector(s);

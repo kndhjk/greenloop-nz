@@ -144,6 +144,27 @@ const GreenLoop = (() => {
     document.body.appendChild(dock);
   };
 
+  const ensureGlobalFooter = () => {
+    if (document.querySelector(".site-footer")) return;
+    const footer = document.createElement("footer");
+    footer.className = "site-footer";
+    footer.innerHTML = `
+      <div class="site-footer-inner">
+        <div class="site-footer-brand">
+          <strong>GreenLoop NZ</strong>
+          <span>Student marketplace, logistics, jobs, and support in one flow.</span>
+        </div>
+        <nav class="site-footer-links" aria-label="Site links">
+          <a href="/help">Help</a>
+          <a href="/trust">Trust & Safety</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+        </nav>
+      </div>
+    `;
+    document.body.appendChild(footer);
+  };
+
   const fallbackImageMap = {
     furniture:
       "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80",
@@ -228,6 +249,7 @@ const GreenLoop = (() => {
 
   const updateChrome = () => {
     ensureShell();
+    ensureGlobalFooter();
     const badge = $("#session-badge");
     if (badge) {
       badge.classList.toggle("hidden", !state.user);

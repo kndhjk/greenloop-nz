@@ -1,4 +1,5 @@
 let uploadedRoomUrl = "";
+const params = new URLSearchParams(window.location.search);
 
 const uploadRoom = async (input) => {
   const file = input.files?.[0];
@@ -19,8 +20,14 @@ const uploadRoom = async (input) => {
 const wireJsonForm = (selector, endpoint, success) => {
   GreenLoop.$(selector)?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const submitButton = event.currentTarget.querySelector('button[type="submit"]');
     try {
       const payload = Object.fromEntries(new FormData(event.currentTarget).entries());
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.dataset.originalLabel = submitButton.textContent;
+        submitButton.textContent = "Sending...";
+      }
       const data = await GreenLoop.api(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -30,12 +37,41 @@ const wireJsonForm = (selector, endpoint, success) => {
       success(data);
     } catch (error) {
       GreenLoop.showToast(error.message, true);
+    } finally {
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = submitButton.dataset.originalLabel || "Send";
+      }
     }
   });
 };
 
+const applyItemContext = async () => {
+  const itemId = Number(params.get("itemId") || 0);
+  if (!itemId) return;
+
+  ["reservation-form", "delivery-form", "service-form", "donation-form"].forEach((formId) => {
+    const input = document.querySelector(`#${formId} [name="itemId"]`);
+    if (input) input.value = String(itemId);
+  });
+
+  const card = document.getElementById("service-item-context");
+  const title = document.getElementById("service-item-context-title");
+  const meta = document.getElementById("service-item-context-meta");
+  if (!card || !title || !meta) return;
+
+  try {
+    const data = await GreenLoop.api(`/api/items/${itemId}`);
+    const item = data.item;
+    title.textContent = item.title || `Item #${itemId}`;
+    meta.textContent = `${item.location || "Pickup area not set"} · NZ$${Number(item.price || 0).toFixed(2)} · ${item.status || "available"}`;
+    card.classList.remove("hidden");
+  } catch (_) {}
+};
+
 const boot = async () => {
   await GreenLoop.bootstrap({ protectedPage: true });
+  await applyItemContext();
 
   wireJsonForm("#reservation-form", "/api/reservations", () => GreenLoop.showToast("Pickup booked."));
   wireJsonForm("#service-form", "/api/services", () => GreenLoop.showToast("Service request submitted."));

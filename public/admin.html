@@ -5,8 +5,162 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Admin | GreenLoop NZ</title>
     <link rel="stylesheet" href="/styles.css" />
+    <style>
+      .admin-shell {
+        position: relative;
+      }
+
+      .admin-drawer-toggle {
+        position: fixed;
+        left: 16px;
+        top: 96px;
+        z-index: 60;
+        border-radius: 999px;
+        padding: 12px 14px;
+      }
+
+      .admin-drawer {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: min(320px, calc(100vw - 28px));
+        height: 100vh;
+        z-index: 70;
+        background: rgba(255, 251, 244, 0.98);
+        border-right: 1px solid var(--line);
+        box-shadow: 0 24px 48px rgba(123, 79, 63, 0.18);
+        transform: translateX(-102%);
+        transition: transform 0.22s ease;
+        display: flex;
+        flex-direction: column;
+      }
+
+      body.admin-drawer-open .admin-drawer {
+        transform: translateX(0);
+      }
+
+      .admin-drawer-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(24, 41, 29, 0.24);
+        z-index: 65;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+      }
+
+      body.admin-drawer-open .admin-drawer-backdrop {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .admin-drawer-head {
+        padding: 22px 20px 14px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .admin-drawer-head h2 {
+        margin: 0 0 6px;
+        font-size: 20px;
+      }
+
+      .admin-drawer-copy {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .admin-drawer-nav {
+        padding: 18px 16px 24px;
+        overflow: auto;
+        display: grid;
+        gap: 18px;
+      }
+
+      .admin-drawer-group {
+        display: grid;
+        gap: 10px;
+      }
+
+      .admin-drawer-group h3 {
+        margin: 0;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+
+      .admin-drawer-link {
+        display: block;
+        text-decoration: none;
+        padding: 12px 14px;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: rgba(255, 247, 238, 0.9);
+        color: var(--ink);
+        font-weight: 700;
+      }
+
+      .admin-drawer-link span {
+        display: block;
+        margin-top: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--muted);
+      }
+
+      .admin-anchor-target {
+        scroll-margin-top: 110px;
+      }
+
+      @media (max-width: 900px) {
+        .admin-drawer-toggle {
+          top: 84px;
+          left: 12px;
+        }
+      }
+    </style>
   </head>
   <body data-page="admin">
+    <button id="admin-drawer-toggle" class="admin-drawer-toggle" type="button">☰ Admin</button>
+    <div id="admin-drawer-backdrop" class="admin-drawer-backdrop"></div>
+    <aside id="admin-drawer" class="admin-drawer" aria-hidden="true">
+      <div class="admin-drawer-head">
+        <div>
+          <h2>Admin 管理</h2>
+          <p class="admin-drawer-copy">左侧菜单收纳所有后台入口。点开直接跳到对应管理区，不用再往下翻。</p>
+        </div>
+        <button id="admin-drawer-close" class="ghost-button" type="button">Close</button>
+      </div>
+      <nav class="admin-drawer-nav">
+        <div class="admin-drawer-group">
+          <h3>管理分区</h3>
+          <a class="admin-drawer-link" href="#admin-overview">Overview<span>统计总览</span></a>
+          <a class="admin-drawer-link" href="#admin-users">Users<span>用户增删改查</span></a>
+          <a class="admin-drawer-link" href="#admin-verifications">Verification<span>审核学生验证</span></a>
+          <a class="admin-drawer-link" href="#admin-activity">Activity<span>行为日志</span></a>
+          <a class="admin-drawer-link" href="#admin-ops">Ops Requests<span>预约 / 配送 / 服务 / 捐赠审批</span></a>
+          <a class="admin-drawer-link" href="#admin-support">Support<span>帮助与客服工单</span></a>
+          <a class="admin-drawer-link" href="#admin-items">Listings<span>商品管理</span></a>
+          <a class="admin-drawer-link" href="#admin-opportunities">Opportunities<span>岗位发布与维护</span></a>
+          <a class="admin-drawer-link" href="#admin-applications">Applications<span>岗位申请与 CV</span></a>
+        </div>
+        <div class="admin-drawer-group">
+          <h3>业务页面</h3>
+          <a class="admin-drawer-link" href="/marketplace">Marketplace<span>前台商品页</span></a>
+          <a class="admin-drawer-link" href="/sell">Sell<span>发布商品页</span></a>
+          <a class="admin-drawer-link" href="/services">Services<span>服务申请页</span></a>
+          <a class="admin-drawer-link" href="/opportunities">Opportunities<span>岗位页</span></a>
+          <a class="admin-drawer-link" href="/chat">Chat<span>聊天页</span></a>
+          <a class="admin-drawer-link" href="/community">Community<span>社区页</span></a>
+        </div>
+      </nav>
+    </aside>
     <header class="topbar">
       <a class="brand" href="/">GreenLoop</a>
       <nav class="nav">
@@ -21,8 +175,8 @@
       </div>
     </header>
 
-    <main class="page">
-      <section class="page-hero">
+    <main class="page admin-shell">
+      <section id="admin-overview" class="page-hero admin-anchor-target">
         <div>
           <p class="eyebrow">Admin control</p>
           <h1>Manage users and see what the product is actually doing.</h1>
@@ -51,10 +205,64 @@
               <button id="admin-user-cancel" class="ghost-button hidden" type="button">Cancel edit</button>
             </div>
           </form>
+
+          <hr style="margin:20px 0;border:none;border-top:1px solid #eee" />
+
+          <p class="eyebrow">Listing control</p>
+          <form id="admin-item-form" class="stack-form">
+            <input id="admin-item-title" placeholder="Listing title" required />
+            <textarea id="admin-item-description" placeholder="Listing description" required></textarea>
+            <div class="two-col">
+              <input id="admin-item-category" placeholder="Category" required />
+              <input id="admin-item-condition" placeholder="Condition" required />
+            </div>
+            <div class="two-col">
+              <input id="admin-item-location" placeholder="Location" required />
+              <input id="admin-item-price" type="number" min="0" step="0.01" placeholder="Price (NZD)" required />
+            </div>
+            <div class="two-col">
+              <input id="admin-item-pickup" placeholder="Pickup windows" />
+              <select id="admin-item-status">
+                <option value="available">available</option>
+                <option value="reserved">reserved</option>
+                <option value="donated">donated</option>
+                <option value="completed">completed</option>
+              </select>
+            </div>
+            <input id="admin-item-images" placeholder="Images: comma,separated,urls" />
+            <input id="admin-item-delivery" placeholder="Delivery options: comma,separated" />
+            <label class="checkbox-row"><input id="admin-item-donation" type="checkbox" /> Donation available</label>
+            <div class="cta-row">
+              <button id="admin-item-submit" type="submit">Update listing</button>
+              <button id="admin-item-cancel" class="ghost-button hidden" type="button">Cancel edit</button>
+            </div>
+          </form>
+
+          <hr style="margin:20px 0;border:none;border-top:1px solid #eee" />
+
+          <p class="eyebrow">Opportunity control</p>
+          <form id="admin-opportunity-form" class="stack-form">
+            <input id="admin-opportunity-title" placeholder="Role title" required />
+            <input id="admin-opportunity-org" placeholder="Organisation" required />
+            <div class="two-col">
+              <select id="admin-opportunity-type">
+                <option value="internship">internship</option>
+                <option value="volunteer">volunteer</option>
+              </select>
+              <input id="admin-opportunity-location" placeholder="Location" required />
+            </div>
+            <input id="admin-opportunity-skills" placeholder="Skills: comma,separated" />
+            <input id="admin-opportunity-apply-url" placeholder="External apply URL" />
+            <textarea id="admin-opportunity-summary" placeholder="Role summary" required></textarea>
+            <div class="cta-row">
+              <button id="admin-opportunity-submit" type="submit">Update role</button>
+              <button id="admin-opportunity-cancel" class="ghost-button hidden" type="button">Cancel edit</button>
+            </div>
+          </form>
         </aside>
 
         <section class="main-card admin-main">
-          <div class="section-head">
+          <div id="admin-users" class="section-head admin-anchor-target">
             <div>
               <p class="eyebrow">Users</p>
               <h2>User accounts</h2>
@@ -63,7 +271,7 @@
           </div>
           <div id="admin-user-list" class="data-list"></div>
 
-          <div class="section-head admin-section-gap">
+          <div id="admin-verifications" class="section-head admin-section-gap admin-anchor-target">
             <div>
               <p class="eyebrow">Pending verification</p>
               <h2>Queue</h2>
@@ -71,13 +279,53 @@
           </div>
           <div id="admin-verification-list" class="data-list"></div>
 
-          <div class="section-head admin-section-gap">
+          <div id="admin-activity" class="section-head admin-section-gap admin-anchor-target">
             <div>
               <p class="eyebrow">Behavior tracking</p>
               <h2>Recent activity</h2>
             </div>
           </div>
           <div id="admin-activity-list" class="data-list"></div>
+
+          <div id="admin-ops" class="section-head admin-section-gap admin-anchor-target">
+            <div>
+              <p class="eyebrow">Operations inbox</p>
+              <h2>Service and move requests</h2>
+            </div>
+          </div>
+          <div id="admin-ops-list" class="data-list"></div>
+
+          <div id="admin-support" class="section-head admin-section-gap admin-anchor-target">
+            <div>
+              <p class="eyebrow">Support inbox</p>
+              <h2>Help and support requests</h2>
+            </div>
+          </div>
+          <div id="admin-support-list" class="data-list"></div>
+
+          <div id="admin-items" class="section-head admin-section-gap admin-anchor-target">
+            <div>
+              <p class="eyebrow">Listing inventory</p>
+              <h2>Marketplace listings</h2>
+            </div>
+          </div>
+          <div id="admin-item-list" class="data-list"></div>
+
+          <div id="admin-opportunities" class="section-head admin-section-gap admin-anchor-target">
+            <div>
+              <p class="eyebrow">Role management</p>
+              <h2>Campus opportunities</h2>
+            </div>
+          </div>
+          <div id="admin-opportunity-list" class="data-list"></div>
+
+          <div id="admin-applications" class="section-head admin-section-gap admin-anchor-target">
+            <div>
+              <p class="eyebrow">Hiring inbox</p>
+              <h2>Opportunity applications</h2>
+            </div>
+          </div>
+          <div id="admin-opportunity-applications" class="data-list"></div>
         </section>
       </section>
     </main>
@@ -85,5 +333,27 @@
     <div id="toast" class="toast"></div>
     <script src="/app-shell.js"></script>
     <script src="/admin.js"></script>
+    <script>
+      (() => {
+        const body = document.body;
+        const toggle = document.getElementById("admin-drawer-toggle");
+        const close = document.getElementById("admin-drawer-close");
+        const backdrop = document.getElementById("admin-drawer-backdrop");
+        const links = document.querySelectorAll(".admin-drawer-link");
+
+        const openDrawer = () => body.classList.add("admin-drawer-open");
+        const closeDrawer = () => body.classList.remove("admin-drawer-open");
+
+        toggle?.addEventListener("click", () => {
+          body.classList.toggle("admin-drawer-open");
+        });
+        close?.addEventListener("click", closeDrawer);
+        backdrop?.addEventListener("click", closeDrawer);
+        links.forEach((link) => link.addEventListener("click", closeDrawer));
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape") closeDrawer();
+        });
+      })();
+    </script>
   </body>
 </html>
