@@ -31,8 +31,7 @@ const reservationActions = (item, currentUserId) => {
 };
 
 const boot = async () => {
-  await GreenLoop.bootstrap({ protectedPage: true });
-  const submitBtn = document.querySelector('#publish-form button[type="submit"]');
+  const currentUser = await GreenLoop.bootstrap({ protectedPage: true });
   const data = await GreenLoop.api("/api/dashboard");
 
   const stats = document.getElementById("stats");
@@ -41,6 +40,32 @@ const boot = async () => {
     <article class="stat-card"><span>Plan</span><strong>${data.summary.premiumPlan}</strong></article>
     <article class="stat-card"><span>Verification</span><strong>${data.user.verificationStatus}</strong></article>
   `;
+
+  const adminPanel = document.getElementById("admin-dashboard-panel");
+  const adminLinks = document.getElementById("admin-dashboard-links");
+  if (currentUser?.isAdmin && adminPanel && adminLinks) {
+    adminPanel.classList.remove("hidden");
+    adminLinks.innerHTML = `
+      <a class="admin-quick-card" href="/admin">
+        <span class="admin-quick-kicker">Admin</span>
+        <strong>Open control center</strong>
+        <p>Jump straight into user ops, listings, support, and moderation.</p>
+        <span class="admin-quick-cta">Open admin →</span>
+      </a>
+      <a class="admin-quick-card" href="/admin#admin-verifications">
+        <span class="admin-quick-kicker">Queue</span>
+        <strong>Verification review</strong>
+        <p>Check pending students before they get stuck outside the core flows.</p>
+        <span class="admin-quick-cta">Review queue →</span>
+      </a>
+      <a class="admin-quick-card" href="/admin#admin-support">
+        <span class="admin-quick-kicker">Inbox</span>
+        <strong>Support requests</strong>
+        <p>Handle trust, bug, and logistics issues without hunting through the admin page.</p>
+        <span class="admin-quick-cta">Open support →</span>
+      </a>
+    `;
+  }
 
   renderList(
     "reservations",

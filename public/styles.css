@@ -1173,6 +1173,13 @@ textarea {
 }
 
 @media (max-width: 1120px) {
+  .admin-shortcut {
+    right: 12px;
+    bottom: 86px;
+    min-width: 120px;
+    padding: 9px 12px;
+  }
+
   .hero,
   .seller-hero,
   .detail-hero,
@@ -2161,4 +2168,85 @@ textarea {
 
 .site-footer-links a:hover {
   text-decoration: underline;
+}
+
+.admin-shortcut {
+  position: fixed;
+  right: 18px;
+  bottom: 92px;
+  z-index: 64;
+  display: grid;
+  gap: 2px;
+  min-width: 132px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  text-decoration: none;
+  color: #fff;
+  background: linear-gradient(135deg, #8b1e2d, #c2410c);
+  box-shadow: 0 18px 36px rgba(139, 30, 45, 0.3);
+}
+
+.admin-shortcut.hidden {
+  display: none;
+}
+
+.admin-shortcut-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.admin-shortcut strong {
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.admin-shortcut.admin-shortcut-on-admin {
+  background: linear-gradient(135deg, #14532d, #166534);
+}
+
+.admin-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.admin-quick-card {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, #fffefb, #fff7ef);
+  text-decoration: none;
+  color: var(--ink);
+  box-shadow: 0 12px 30px rgba(123, 79, 63, 0.08);
+}
+
+.admin-quick-card strong {
+  font-size: 17px;
+  line-height: 1.25;
+}
+
+.admin-quick-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.admin-quick-cta {
+  color: var(--brand-dark);
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.admin-quick-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  color: #b45309;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }

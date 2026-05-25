@@ -27,6 +27,61 @@ const renderAdminStats = (totals) => {
   `;
 };
 
+const renderAdminQuickGrid = (totals) => {
+  const target = document.getElementById("admin-quick-grid");
+  if (!target) return;
+  const cards = [
+    {
+      href: "#admin-verifications",
+      title: "Verification queue",
+      detail: `${totals.pendingVerifications || 0} users waiting for review`,
+      cta: "Review students",
+    },
+    {
+      href: "#admin-support",
+      title: "Support inbox",
+      detail: `${totals.supportRequests || 0} support requests need handling`,
+      cta: "Open support",
+    },
+    {
+      href: "#admin-ops",
+      title: "Ops requests",
+      detail: `${totals.opsRequests || 0} pickup, delivery, service, or donation requests`,
+      cta: "Run ops",
+    },
+    {
+      href: "#admin-applications",
+      title: "Hiring inbox",
+      detail: `${totals.applications || 0} CVs and job applications received`,
+      cta: "Review hiring",
+    },
+    {
+      href: "#admin-items",
+      title: "Listings control",
+      detail: "Edit, remove, and fix marketplace inventory",
+      cta: "Manage listings",
+    },
+    {
+      href: "/dashboard",
+      title: "Seller-side view",
+      detail: "Jump back to the normal user dashboard when testing buyer/seller flows",
+      cta: "Open dashboard",
+    },
+  ];
+  target.innerHTML = cards
+    .map(
+      (card) => `
+        <a class="admin-quick-card" href="${card.href}">
+          <span class="admin-quick-kicker">Quick access</span>
+          <strong>${card.title}</strong>
+          <p>${card.detail}</p>
+          <span class="admin-quick-cta">${card.cta} →</span>
+        </a>
+      `
+    )
+    .join("");
+};
+
 const splitCsv = (value) =>
   String(value || "")
     .split(",")
@@ -440,6 +495,7 @@ const bootAdmin = async () => {
   ]);
 
   renderAdminStats(summary.totals);
+  renderAdminQuickGrid(summary.totals);
   renderAdminUsers(users.users || []);
   renderAdminQueue(queue.users || []);
   renderAdminActivity(activity.logs || []);

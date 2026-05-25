@@ -247,6 +247,24 @@ const GreenLoop = (() => {
     document.body.appendChild(footer);
   };
 
+  const ensureAdminShortcut = () => {
+    let shortcut = document.getElementById("admin-shortcut");
+    if (!shortcut) {
+      shortcut = document.createElement("a");
+      shortcut.id = "admin-shortcut";
+      shortcut.className = "admin-shortcut hidden";
+      shortcut.href = "/admin";
+      shortcut.setAttribute("aria-label", "Open admin control");
+      document.body.appendChild(shortcut);
+    }
+    shortcut.innerHTML = `
+      <span class="admin-shortcut-kicker">Admin</span>
+      <strong>${window.location.pathname === "/admin" ? "Control live" : "Open control"}</strong>
+    `;
+    shortcut.classList.toggle("hidden", !state.user?.isAdmin);
+    shortcut.classList.toggle("admin-shortcut-on-admin", window.location.pathname === "/admin");
+  };
+
   const upsertMeta = (name, content, attribute = "name") => {
     let tag = document.head.querySelector(`meta[${attribute}="${name}"]`);
     if (!tag) {
@@ -378,6 +396,7 @@ const GreenLoop = (() => {
     ensureDocumentMeta();
     ensureShell();
     ensureGlobalFooter();
+    ensureAdminShortcut();
     const badge = $("#session-badge");
     if (badge) {
       badge.classList.toggle("hidden", !state.user);
