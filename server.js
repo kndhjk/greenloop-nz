@@ -68,6 +68,11 @@ const ALLOWED_UPLOAD_MIME_TYPES = new Set([
   "image/webp",
   "image/gif",
   "application/pdf",
+  "application/x-pdf",
+  "application/acrobat",
+  "applications/vnd.pdf",
+  "text/pdf",
+  "application/octet-stream",
 ]);
 const ALLOWED_UPLOAD_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".pdf"]);
 
@@ -95,7 +100,10 @@ const upload = multer({
   }),
   fileFilter: (_req, file, cb) => {
     const ext = path.extname(file.originalname || "").toLowerCase();
-    if (!ALLOWED_UPLOAD_MIME_TYPES.has(String(file.mimetype || "").toLowerCase()) || !ALLOWED_UPLOAD_EXTENSIONS.has(ext)) {
+    const mime = String(file.mimetype || "").toLowerCase();
+    const isPdf = ext === ".pdf";
+    const mimeAllowed = ALLOWED_UPLOAD_MIME_TYPES.has(mime) || (isPdf && !mime);
+    if (!mimeAllowed || !ALLOWED_UPLOAD_EXTENSIONS.has(ext)) {
       return cb(new Error("Only JPG, PNG, GIF, WebP, or PDF files are allowed."));
     }
     cb(null, true);
@@ -1076,8 +1084,7 @@ app.post(
   asyncHandler(async (req, res) => {
     if (!req.file) return res.status(400).json({ error: "File is required." });
     const ext = path.extname(req.file.originalname || "").toLowerCase();
-    const mime = String(req.file.mimetype || "").toLowerCase();
-    if (mime !== "application/pdf" || ext !== ".pdf") {
+    if (ext !== ".pdf") {
       try {
         fs.unlinkSync(req.file.path);
       } catch {}
