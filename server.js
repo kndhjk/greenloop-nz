@@ -10,6 +10,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const mysql = require("mysql2/promise");
 const nodemailer = require("nodemailer");
+const pdfParse = require("pdf-parse");
 
 const app = express();
 const PORT = Number(process.env.PORT || 5001);
@@ -251,6 +252,94 @@ const parseJobsFile = () => {
   }
 };
 
+const MATCH_STOPWORDS = new Set([
+  "the", "and", "for", "with", "that", "this", "from", "your", "you", "are", "our", "has", "have",
+  "will", "into", "about", "their", "them", "they", "but", "not", "all", "any", "can", "may", "per",
+  "job", "role", "work", "team", "new", "nz", "newzealand", "aotearoa", "experience", "skills",
+  "skill", "using", "used", "who", "what", "when", "where", "how", "able", "required", "preferred",
+  "including", "across", "within", "through", "need", "needs", "want", "wants", "good", "strong",
+  "well", "one", "two", "three", "four", "five", "day", "days", "week", "weeks", "month", "months",
+]);
+
+const tokenizeText = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9+#./ -]+/g, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2 && !MATCH_STOPWORDS.has(token));
+
+const uniqueTokens = (value) => Array.from(new Set(tokenizeText(value)));
+
+const resolveUploadPath = (uploadUrl) => {
+  const relative = String(uploadUrl || "").trim();
+  if (!relative.startsWith("/uploads/")) {
+    throw new Error("Resume must be uploaded to GreenLoop first.");
+  }
+  const filePath = path.normalize(path.join(__dirname, relative.replace(/^\/+/, "")));
+  if (!filePath.startsWith(uploadsDir + path.sep) && filePath !== uploadsDir) {
+    throw new Error("Invalid upload path.");
+  }
+  if (!fs.existsSync(filePath)) {
+    throw new Error("Uploaded resume file was not found.");
+  }
+  if (path.extname(filePath).toLowerCase() !== ".pdf") {
+    throw new Error("Only PDF resumes are supported for match analysis.");
+  }
+  return filePath;
+};
+
+const extractResumeText = async (uploadUrl) => {
+  const filePath = resolveUploadPath(uploadUrl);
+  const buffer = fs.readFileSync(filePath);
+  const parsed = await pdfParse(buffer);
+  const text = String(parsed.text || "").replace(/\s+/g, " ").trim();
+  if (!text) {
+    throw new Error("Could not read text from that PDF resume.");
+  }
+  return text.slice(0, 40000);
+};
+
+const buildResumeProfile = (resumeText) => {
+  const resumeTokens = uniqueTokens(resumeText);
+  const resumeSet = new Set(resumeTokens);
+  return { resumeTokens, resumeSet };
+};
+
+const scoreJobMatch = (job, resumeProfile) => {
+  const titleTokens = uniqueTokens(job.title);
+  const companyTokens = uniqueTokens(job.company);
+  const locationTokens = uniqueTokens(job.location);
+  const descTokens = uniqueTokens(job.description);
+  const combined = Array.from(new Set([...titleTokens, ...companyTokens, ...locationTokens, ...descTokens]));
+
+  const matchedTitle = titleTokens.filter((token) => resumeProfile.resumeSet.has(token));
+  const matchedCompany = companyTokens.filter((token) => resumeProfile.resumeSet.has(token));
+  const matchedLocation = locationTokens.filter((token) => resumeProfile.resumeSet.has(token));
+  const matchedDesc = descTokens.filter((token) => resumeProfile.resumeSet.has(token));
+  const matchedAll = combined.filter((token) => resumeProfile.resumeSet.has(token));
+
+  let rawScore = 0;
+  rawScore += matchedTitle.length * 16;
+  rawScore += matchedDesc.length * 5;
+  rawScore += matchedLocation.length * 4;
+  rawScore += matchedCompany.length * 2;
+  rawScore += Math.min(matchedAll.length, 12) * 2;
+
+  const denominator = Math.max(titleTokens.length * 16 + Math.min(descTokens.length, 20) * 5 + locationTokens.length * 4, 40);
+  const normalizedScore = Math.min(100, Math.max(0, Math.round((rawScore / denominator) * 100)));
+
+  return {
+    score: normalizedScore,
+    matchedKeywords: Array.from(new Set([...matchedTitle, ...matchedLocation, ...matchedDesc])).slice(0, 10),
+    matchReasons: [
+      matchedTitle.length ? `${matchedTitle.length} title keyword${matchedTitle.length > 1 ? "s" : ""}` : "",
+      matchedDesc.length ? `${matchedDesc.length} description keyword${matchedDesc.length > 1 ? "s" : ""}` : "",
+      matchedLocation.length ? `${matchedLocation.length} location keyword${matchedLocation.length > 1 ? "s" : ""}` : "",
+    ].filter(Boolean),
+  };
+};
+
 const filterJobs = (jobs, query) => {
   let result = [...jobs];
   const q = cleanText(query.q, 120).toLowerCase();
@@ -277,6 +366,24 @@ const filterJobs = (jobs, query) => {
     total: result.length,
     limit,
   };
+};
+
+const sortJobsByResumeMatch = (jobs, resumeText) => {
+  const resumeProfile = buildResumeProfile(resumeText);
+  return jobs
+    .map((job) => {
+      const match = scoreJobMatch(job, resumeProfile);
+      return {
+        ...job,
+        matchScore: match.score,
+        matchedKeywords: match.matchedKeywords,
+        matchReasons: match.matchReasons,
+      };
+    })
+    .sort((a, b) => {
+      if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
+      return new Date(b.listedAt || 0) - new Date(a.listedAt || 0);
+    });
 };
 
 const triggerJobsRefresh = () => {
@@ -2838,6 +2945,28 @@ app.get("/api/jobs", (req, res) => {
     source: "greenloop-bound-cache",
   });
 });
+
+app.post(
+  "/api/jobs/match",
+  asyncHandler(async (req, res) => {
+    const cvUrl = cleanText(req.body.cvUrl, 2000);
+    if (!cvUrl) {
+      return res.status(400).json({ error: "Upload a PDF resume first." });
+    }
+
+    const resumeText = await extractResumeText(cvUrl);
+    const jobs = parseJobsFile();
+    const filtered = filterJobs(jobs, req.body || req.query || {});
+    const rankedJobs = sortJobsByResumeMatch(filtered.jobs, resumeText);
+
+    res.json({
+      jobs: rankedJobs,
+      total: filtered.total,
+      source: "greenloop-resume-match",
+      resumePreview: resumeText.slice(0, 280),
+    });
+  })
+);
 
 app.post("/api/jobs/refresh", (_req, res) => {
   const result = triggerJobsRefresh();

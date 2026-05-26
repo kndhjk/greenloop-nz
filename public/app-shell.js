@@ -707,10 +707,23 @@ const GreenLoop = (() => {
 
   const wireListingChatButtons = (target) => {
   target.querySelectorAll(".listing-chat-button").forEach((button) => {
-    button.addEventListener("click", (e) => {
+    button.addEventListener("click", async (e) => {
       e.preventDefault();
       const itemId = button.dataset.itemId;
-      window.location.href = `/chat?conversation=new&itemId=${itemId}`;
+      if (!state.token) {
+        window.location.href = "/login";
+        return;
+      }
+      try {
+        const chat = await api("/api/chats/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ itemId: Number(itemId) }),
+        });
+        window.location.href = `/chat?conversation=${chat.id}`;
+      } catch (error) {
+        showToast(error.message || "Could not open chat.", true);
+      }
     });
   });
   // Delete button — owner or admin

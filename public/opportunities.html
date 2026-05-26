@@ -59,6 +59,7 @@
 
     /* Jobs main */
     .jobs-main { padding: 20px 32px 60px; }
+    .jobs-section-shell { max-width: 1280px; margin: 0 auto; }
     .results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     .results-header h2 { font-size: 18px; font-weight: 900; color: #333; margin: 0; }
     .results-count { font-size: 13px; color: #999; font-weight: 600; }
@@ -103,6 +104,31 @@
     .job-card-date { font-size: 11px; color: #bbb; font-weight: 600; }
     .apply-link { font-size: 12px; font-weight: 800; color: #e4393c; text-decoration: none; }
     .apply-link:hover { text-decoration: underline; }
+    .job-card-match {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: rgba(46, 125, 50, 0.10);
+      color: #2e7d32;
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .job-card-reasons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .job-card-reason {
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #f5f5f5;
+      color: #666;
+      font-size: 10px;
+      font-weight: 700;
+    }
 
     /* Section divider */
     .section-divider { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; }
@@ -127,12 +153,100 @@
     .gl-card small { font-size: 11px; color: #999; }
     .apply-btn { background: #e4393c; color: #fff; padding: 9px 18px; border-radius: 999px; font-size: 13px; font-weight: 800; white-space: nowrap; text-decoration: none; align-self: flex-start; flex-shrink: 0; }
     .apply-btn:hover { background: #c33235; }
+    .resume-match-panel {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.9fr);
+      gap: 18px;
+      align-items: center;
+      margin: 0 0 18px;
+      padding: 20px 22px;
+      background: linear-gradient(135deg, #fff 0%, #fff5f5 100%);
+      border: 1.5px solid #f1d3d3;
+      border-radius: 22px;
+    }
+    .resume-match-panel h3 { margin: 0 0 6px; font-size: 20px; color: #222; }
+    .resume-match-panel p { margin: 0; color: #666; font-size: 14px; line-height: 1.55; }
+    .resume-match-actions { display: grid; gap: 12px; justify-items: stretch; }
+    .resume-match-upload {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 52px;
+      padding: 12px 16px;
+      border: 1.5px dashed #d8b0b1;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.92);
+      cursor: pointer;
+      font-weight: 700;
+      color: #444;
+      text-align: center;
+    }
+    .resume-match-buttons {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .resume-match-status {
+      padding: 11px 14px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.92);
+      color: #666;
+      font-size: 13px;
+      border: 1px solid #eee;
+    }
+    .resume-match-status.error {
+      border-color: #f2c6c6;
+      background: #fff3f3;
+      color: #b42318;
+    }
+    .ghost-chip {
+      border: 1px solid #ddd;
+      background: #fff;
+      color: #555;
+      border-radius: 999px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .ghost-chip:hover { border-color: #bbb; }
 
     @media (max-width: 900px) {
       .jobs-grid { grid-template-columns: 1fr; }
       .search-bar { padding: 14px 16px; }
       .jobs-main { padding: 16px 16px 40px; }
       .jobs-hero { padding: 28px 16px 20px; }
+      .resume-match-panel { grid-template-columns: 1fr; padding: 18px; }
+      .resume-match-buttons { grid-template-columns: 1fr; }
+      .gl-card { flex-direction: column; }
+    }
+    @media (max-width: 680px) {
+      .jobs-hero h1 { font-size: 28px; }
+      .search-bar {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+      .search-bar input,
+      .search-bar select,
+      .search-btn,
+      .ghost-chip {
+        width: 100%;
+      }
+      .results-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+      }
+      .job-card {
+        padding: 16px;
+      }
+      .job-card-header {
+        flex-direction: column;
+      }
+      .job-card-salary {
+        white-space: normal;
+      }
     }
   </style>
 </head>
@@ -163,7 +277,7 @@
     </section>
 
     <!-- GreenLoop Opportunities -->
-    <section class="jobs-main" style="padding-top:20px">
+    <section class="jobs-main jobs-section-shell" style="padding-top:20px">
       <div class="section-divider"><h2>🎓 Campus Opportunities</h2></div>
       <div id="opportunity-admin-panel" class="main-card" style="display:none;margin-bottom:16px">
         <div class="results-header" style="margin-bottom:12px">
@@ -191,8 +305,26 @@
     </section>
 
     <!-- Seek Jobs -->
-    <section class="jobs-main">
+    <section class="jobs-main jobs-section-shell">
       <div class="section-divider"><h2>🇳🇿 All NZ Jobs (Seek)</h2></div>
+      <div class="resume-match-panel">
+        <div>
+          <p style="color:#e4393c;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.4px;margin:0 0 6px">Commercial fit analysis</p>
+          <h3>Upload your resume and rank jobs by fit</h3>
+          <p>GreenLoop will read your PDF resume, compare it against the live NZ jobs cache, and sort results by match score so mobile, tablet, and desktop users all see the same ranked list.</p>
+        </div>
+        <div class="resume-match-actions">
+          <label class="resume-match-upload" for="resume-match-upload">
+            <span id="resume-match-upload-label">Upload PDF resume</span>
+            <input id="resume-match-upload" type="file" accept="application/pdf" class="hidden" />
+          </label>
+          <div class="resume-match-buttons">
+            <button class="search-btn" id="resume-match-run" type="button">Analyze fit</button>
+            <button class="ghost-chip" id="resume-match-clear" type="button">Clear ranking</button>
+          </div>
+          <div id="resume-match-status" class="resume-match-status">Sign in, upload a PDF resume, then rank the live NZ jobs feed by fit.</div>
+        </div>
+      </div>
 
       <div class="search-bar">
         <input class="keyword-input" id="search-keyword" type="text" placeholder="Job title, keyword..." />
@@ -267,46 +399,58 @@
   <script>
   (function() {
     const $ = s => document.querySelector(s);
+    const jobsState = {
+      cvUrl: '',
+      uploadedName: '',
+      matchMode: false,
+    };
     const notify = (msg, isError = false) => {
       if (window.GreenLoop?.showToast) {
         GreenLoop.showToast(msg, isError);
       }
     };
 
-    // ── GreenLoop opportunities ──
-    async function loadGL() {
-      try {
-        const data = await fetch('/api/opportunities').then(r => r.json()).catch(() => ({}));
-        const list = data.opportunities || [];
-        const el = $('#gl-opportunities');
-        const count = $('#gl-count');
-        if (count) count.textContent = list.length;
+    function currentFilters() {
+      const p = {};
+      const k = $('#search-keyword').value.trim();
+      const l = $('#search-location').value;
+      const t = $('#search-type').value;
+      if (k) p.q = k;
+      if (l) p.location = l;
+      if (t) p.type = t;
+      return p;
+    }
 
-        if (!list.length) {
-          el.innerHTML = '<div class="empty-state"><h3>No listings yet</h3><p><a href="/register" style="color:#e4393c">Post the first opportunity →</a></p></div>';
-          return;
-        }
-        el.innerHTML = list.map(item => `
-          <article class="gl-card">
-            <div style="flex:1">
-              <h3>${item.title || 'Untitled'}</h3>
-              <p>${item.org_name || ''} · ${item.opportunity_type || ''} · ${item.location || ''}</p>
-              <p style="font-size:12px;color:#888;margin:4px 0">${(item.summary || '').slice(0,100)}</p>
-              ${(item.skills||[]).length ? '<p style="font-size:11px;color:#999">Skills: ' + item.skills.join(', ') + '</p>' : ''}
-            </div>
-            ${item.apply_url ? `<a href="${item.apply_url}" target="_blank" class="apply-btn">Apply</a>` : ''}
-          </article>
-        `).join('');
-      } catch(e) {
-        $('#gl-opportunities').innerHTML = '<p style="color:#999;text-align:center;padding:20px">Could not load.</p>';
+    function setResumeStatus(message, isError = false) {
+      const status = $('#resume-match-status');
+      if (!status) return;
+      status.textContent = message;
+      status.classList.toggle('error', !!isError);
+    }
+
+    async function uploadResume(file) {
+      if (!window.GreenLoop?.state?.token) {
+        window.location.href = '/login';
+        return;
       }
+      const form = new FormData();
+      form.append('file', file);
+      const response = await fetch('/api/uploads', { method: 'POST', body: form });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Resume upload failed.');
+      jobsState.cvUrl = data.url || '';
+      jobsState.uploadedName = file.name || 'resume.pdf';
+      jobsState.matchMode = false;
+      $('#resume-match-upload-label').textContent = `PDF ready: ${jobsState.uploadedName}`;
+      setResumeStatus('Resume uploaded. Click "Analyze fit" to rank every live NZ job by match score.');
     }
 
     // ── Seek jobs ──
-    function renderJobs(jobs, total = null) {
+    function renderJobs(jobs, total = null, opts = {}) {
       const grid = $('#seek-jobs');
       const count = $('#results-count');
       const seekCount = $('#seek-count');
+      const matchedMode = !!opts.matched;
       if (!jobs.length) {
         grid.innerHTML = '<div class="empty-state"><h3>No jobs found</h3><p>Try different keywords.</p></div>';
         if (count) count.textContent = '0 jobs';
@@ -314,16 +458,20 @@
       }
       const totalCount = typeof total === 'number' ? total : jobs.length;
       if (seekCount) seekCount.textContent = totalCount;
-      if (count) count.textContent = totalCount + ' jobs';
+      if (count) count.textContent = matchedMode ? `${totalCount} jobs ranked by fit` : totalCount + ' jobs';
 
       const wtMap = { full_time: ['ft','Full time'], part_time: ['pt','Part time'], contract: ['ct','Contract'], casual: ['cs','Casual'] };
       grid.innerHTML = jobs.map(j => {
         const [cls, lbl] = wtMap[j.workType] || ['ft','Full time'];
         const date = j.listedAt ? new Date(j.listedAt).toLocaleDateString('en-NZ',{day:'numeric',month:'short'}) : (j.listedLabel || '');
+        const reasons = Array.isArray(j.matchReasons) ? j.matchReasons.filter(Boolean).slice(0, 3) : [];
         return `<a class="job-card" href="${j.url||'#'}" target="_blank" rel="noopener">
           <div class="job-card-header">
             <h3>${j.title||'Untitled'}</h3>
-            ${j.salary ? `<strong class="job-card-salary">${j.salary}</strong>` : ''}
+            <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+              ${matchedMode ? `<span class="job-card-match">Match ${Number(j.matchScore || 0)}%</span>` : ''}
+              ${j.salary ? `<strong class="job-card-salary">${j.salary}</strong>` : ''}
+            </div>
           </div>
           <div class="job-card-company">${j.company||'Unknown'}</div>
           <div class="job-card-meta">
@@ -331,6 +479,7 @@
             <span class="meta-tag ${cls}">${lbl}</span>
             ${j.featured ? '<span class="meta-tag fea">★ Featured</span>' : ''}
           </div>
+          ${matchedMode && reasons.length ? `<div class="job-card-reasons">${reasons.map(reason => `<span class="job-card-reason">${reason}</span>`).join('')}</div>` : ''}
           ${j.description ? `<p class="job-card-desc">${j.description}</p>` : ''}
           <div class="job-card-footer">
             <span class="job-card-date">${date}</span>
@@ -340,17 +489,34 @@
       }).join('');
     }
 
-    async function loadJobs(params) {
+    async function loadJobs(params, opts = {}) {
       const grid = $('#seek-jobs');
       grid.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Searching...</p></div>';
+      const matched = !!opts.matched;
       try {
-        const qs = new URLSearchParams({ limit: 100, ...params }).toString();
-        const resp = await fetch('/api/jobs?' + qs);
+        let resp;
+        if (matched && jobsState.cvUrl) {
+          resp = await fetch('/api/jobs/match', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ limit: 100, cvUrl: jobsState.cvUrl, ...params }),
+          });
+        } else {
+          const qs = new URLSearchParams({ limit: 100, ...params }).toString();
+          resp = await fetch('/api/jobs?' + qs);
+        }
         if (!resp.ok) throw new Error('API error');
         const data = await resp.json();
-        renderJobs(data.jobs || [], data.total);
+        jobsState.matchMode = matched && !!jobsState.cvUrl;
+        renderJobs(data.jobs || [], data.total, { matched: jobsState.matchMode });
+        if (jobsState.matchMode) {
+          setResumeStatus('Resume ranking is active. Search and location filters now keep jobs sorted by fit.');
+        } else if (!jobsState.cvUrl) {
+          setResumeStatus('Sign in, upload a PDF resume, then rank the live NZ jobs feed by fit.');
+        }
       } catch(e) {
         grid.innerHTML = '<div class="empty-state"><h3>Failed to load</h3><p>Could not reach jobs API.</p></div>';
+        if (matched) setResumeStatus('Resume analysis failed. Check the PDF and try again.', true);
       }
     }
 
@@ -362,19 +528,38 @@
       return response.json();
     }
 
-    function doSearch() {
-      const p = {};
-      const k = $('#search-keyword').value.trim();
-      const l = $('#search-location').value;
-      const t = $('#search-type').value;
-      if (k) p.q = k;
-      if (l) p.location = l;
-      if (t) p.type = t;
-      loadJobs(p);
+    function doSearch(forceMatched = jobsState.matchMode) {
+      loadJobs(currentFilters(), { matched: forceMatched && !!jobsState.cvUrl });
     }
 
     $('#search-btn').addEventListener('click', doSearch);
     $('#search-keyword').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+    $('#resume-match-upload').addEventListener('change', async (event) => {
+      const file = event.currentTarget.files?.[0];
+      if (!file) return;
+      try {
+        await uploadResume(file);
+      } catch (error) {
+        setResumeStatus(error.message || 'Resume upload failed.', true);
+        notify(error.message || 'Resume upload failed.', true);
+      }
+    });
+    $('#resume-match-run').addEventListener('click', async () => {
+      if (!jobsState.cvUrl) {
+        setResumeStatus('Upload a PDF resume first.', true);
+        return;
+      }
+      await loadJobs(currentFilters(), { matched: true });
+    });
+    $('#resume-match-clear').addEventListener('click', async () => {
+      jobsState.cvUrl = '';
+      jobsState.uploadedName = '';
+      jobsState.matchMode = false;
+      $('#resume-match-upload').value = '';
+      $('#resume-match-upload-label').textContent = 'Upload PDF resume';
+      setResumeStatus('Sign in, upload a PDF resume, then rank the live NZ jobs feed by fit.');
+      await loadJobs(currentFilters(), { matched: false });
+    });
     $('#reset-btn').addEventListener('click', async (event) => {
       const button = event.currentTarget;
       $('#search-keyword').value = '';
@@ -388,15 +573,14 @@
       } catch (error) {
         notify(error.message || 'Failed to start refresh.', true);
       } finally {
-        await loadJobs({});
-        setTimeout(() => loadJobs({}), 4000);
+        await loadJobs({}, { matched: jobsState.matchMode && !!jobsState.cvUrl });
+        setTimeout(() => loadJobs({}, { matched: jobsState.matchMode && !!jobsState.cvUrl }), 4000);
         button.disabled = false;
         button.textContent = 'Reset';
       }
     });
 
-    loadGL();
-    loadJobs({});
+    loadJobs({}, { matched: false });
     if (window.GreenLoop) GreenLoop.bootstrap();
   })();
   </script>

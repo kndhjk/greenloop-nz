@@ -1,7 +1,10 @@
 const params = new URLSearchParams(window.location.search);
+const initialConversationParam = params.get("conversation");
+const initialItemId = Number(params.get("itemId") || 0);
 
 const chatState = {
-  selectedId: Number(params.get("conversation") || 0),
+  selectedId: /^\d+$/.test(initialConversationParam || "") ? Number(initialConversationParam) : 0,
+  pendingItemId: initialConversationParam === "new" ? initialItemId : 0,
   renderedMobileThreadId: 0,
   lastMessageId: 0,
   pollTimer: null,
@@ -648,7 +651,8 @@ const syncUnreadIndicators = () => {
 const loadConversations = async () => {
   const data = await GreenLoop.api("/api/chats");
   chatState.conversations = data.conversations || [];
-  if (!chatState.selectedId && chatState.conversations[0]) {
+  const selectedExists = chatState.conversations.some((thread) => Number(thread.id) === Number(chatState.selectedId));
+  if ((!chatState.selectedId || !selectedExists) && chatState.conversations[0]) {
     chatState.selectedId = chatState.conversations[0].id;
     history.replaceState({}, "", `/chat?conversation=${chatState.selectedId}`);
   }
@@ -662,6 +666,18 @@ const loadConversations = async () => {
       updateMobileMessages();
     }
   }
+};
+
+const ensureConversationFromItem = async () => {
+  if (!chatState.pendingItemId) return;
+  const chat = await GreenLoop.api("/api/chats/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ itemId: chatState.pendingItemId }),
+  });
+  chatState.selectedId = Number(chat.id || 0);
+  chatState.pendingItemId = 0;
+  history.replaceState({}, "", `/chat?conversation=${chatState.selectedId}`);
 };
 
 // Load older messages for history scrolling
@@ -827,6 +843,7 @@ const boot = async () => {
   lastInnerHeight = window.innerHeight;
 
   await GreenLoop.bootstrap({ protectedPage: true });
+  await ensureConversationFromItem();
   await sendPresence(true);
   await loadConversations();
   syncHeader();
