@@ -323,7 +323,7 @@
             <button class="search-btn" id="resume-match-run" type="button">Analyze fit</button>
             <button class="ghost-chip" id="resume-match-clear" type="button">Clear ranking</button>
           </div>
-          <div id="resume-match-status" class="resume-match-status">Sign in, upload a PDF resume, then rank the live NZ jobs feed by fit.</div>
+          <div id="resume-match-status" class="resume-match-status">Upload a PDF resume, then rank the live NZ jobs feed by fit.</div>
         </div>
       </div>
 
@@ -443,38 +443,10 @@
       status.classList.toggle('error', !!isError);
     }
 
-    async function ensureResumeSession() {
-      if (!window.GreenLoop?.state?.token) {
-        setResumeStatus('Sign in first, then upload a PDF resume here.', true);
-        notify('Sign in required before resume analysis.', true);
-        return null;
-      }
-      try {
-        if (!window.GreenLoop.state.user) {
-          await GreenLoop.bootstrap();
-        }
-        if (!window.GreenLoop.state.user) {
-          const me = await GreenLoop.api('/api/auth/me');
-          window.GreenLoop.state.user = me.user || null;
-        }
-      } catch (_) {}
-      if (!window.GreenLoop?.state?.token || !window.GreenLoop?.state?.user) {
-        setResumeStatus('Your session is not ready yet. Refresh once and try the upload again.', true);
-        notify('Session check failed for resume upload.', true);
-        return null;
-      }
-      return window.GreenLoop.state.user;
-    }
-
     async function uploadResume(file) {
-      const activeUser = await ensureResumeSession();
-      if (!activeUser) {
-        return;
-      }
       const form = new FormData();
       form.append('file', file);
-      const headers = window.GreenLoop?.state?.token ? { Authorization: `Bearer ${window.GreenLoop.state.token}` } : {};
-      const response = await fetch('/api/uploads', { method: 'POST', headers, body: form });
+      const response = await fetch('/api/uploads/resume', { method: 'POST', body: form });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Resume upload failed.');
       jobsState.cvUrl = data.url || '';
@@ -554,7 +526,7 @@
         if (jobsState.matchMode) {
           setResumeStatus('Resume ranking is active. Search and location filters now keep jobs sorted by fit.');
         } else if (!jobsState.cvUrl) {
-          setResumeStatus('Sign in, upload a PDF resume, then rank the live NZ jobs feed by fit.');
+          setResumeStatus('Upload a PDF resume, then rank the live NZ jobs feed by fit.');
         }
       } catch(e) {
         grid.innerHTML = '<div class="empty-state"><h3>Failed to load</h3><p>Could not reach jobs API.</p></div>';
@@ -599,7 +571,7 @@
       jobsState.matchMode = false;
       $('#resume-match-upload').value = '';
       $('#resume-match-upload-label').textContent = 'Upload PDF resume';
-      setResumeStatus('Sign in, upload a PDF resume, then rank the live NZ jobs feed by fit.');
+      setResumeStatus('Upload a PDF resume, then rank the live NZ jobs feed by fit.');
       await loadJobs(currentFilters(), { matched: false });
     });
     $('#reset-btn').addEventListener('click', async (event) => {

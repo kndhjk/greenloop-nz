@@ -559,6 +559,13 @@ const uploadRateLimit = createRateLimiter({
   keyFn: (req) => `upload:${req.ip}:${req.user?.id || "guest"}`,
 });
 
+const publicResumeUploadRateLimit = createRateLimiter({
+  windowMs: 10 * 60 * 1000,
+  max: 12,
+  message: "Resume upload limit reached. Please wait before trying again.",
+  keyFn: (req) => `resume-upload:${req.ip}`,
+});
+
 const supportRateLimit = createRateLimiter({
   windowMs: 15 * 60 * 1000,
   max: 6,
@@ -1058,6 +1065,24 @@ app.post(
   upload.single("file"),
   asyncHandler(async (req, res) => {
     if (!req.file) return res.status(400).json({ error: "File is required." });
+    res.json({ url: `/uploads/${req.file.filename}` });
+  })
+);
+
+app.post(
+  "/api/uploads/resume",
+  publicResumeUploadRateLimit,
+  upload.single("file"),
+  asyncHandler(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "File is required." });
+    const ext = path.extname(req.file.originalname || "").toLowerCase();
+    const mime = String(req.file.mimetype || "").toLowerCase();
+    if (mime !== "application/pdf" || ext !== ".pdf") {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch {}
+      return res.status(400).json({ error: "Only PDF resumes are supported here." });
+    }
     res.json({ url: `/uploads/${req.file.filename}` });
   })
 );
