@@ -102,9 +102,21 @@
     .meta-tag.cat { background: #eef2ff; color: #3347b0; }
     .job-card-desc { font-size: 12px; color: #888; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .job-card-footer { display: flex; justify-content: space-between; align-items: center; }
+    .job-card-footer-actions { display: flex; align-items: center; gap: 8px; }
     .job-card-date { font-size: 11px; color: #bbb; font-weight: 600; }
     .apply-link { font-size: 12px; font-weight: 800; color: #e4393c; text-decoration: none; }
     .apply-link:hover { text-decoration: underline; }
+    .job-detail-btn {
+      border: 1px solid #f0c8c8;
+      background: #fff7f7;
+      color: #b42318;
+      border-radius: 999px;
+      padding: 7px 12px;
+      font-size: 11px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .job-detail-btn:hover { background: #fff0f0; }
     .job-card-match {
       display: inline-flex;
       align-items: center;
@@ -211,6 +223,60 @@
       cursor: pointer;
     }
     .ghost-chip:hover { border-color: #bbb; }
+    .resume-suggestion-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .resume-suggestion-item {
+      padding: 9px 11px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.92);
+      border: 1px solid #eee;
+      color: #555;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .match-detail-grid {
+      display: grid;
+      gap: 14px;
+      padding: 20px 22px 22px;
+      background: #fff;
+    }
+    .match-detail-block {
+      border: 1px solid #eee;
+      border-radius: 16px;
+      padding: 14px 15px;
+      background: #fcfcfc;
+    }
+    .match-detail-block h4 {
+      margin: 0 0 8px;
+      font-size: 13px;
+      color: #222;
+    }
+    .match-detail-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .match-detail-tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 5px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      background: #f4f4f4;
+      color: #555;
+    }
+    .match-detail-tag.good {
+      background: rgba(46, 125, 50, 0.10);
+      color: #2e7d32;
+    }
+    .match-detail-tag.miss {
+      background: rgba(228, 57, 60, 0.10);
+      color: #b42318;
+    }
 
     @media (max-width: 900px) {
       .jobs-grid { grid-template-columns: 1fr; }
@@ -313,6 +379,7 @@
           <p style="color:#e4393c;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.4px;margin:0 0 6px">Commercial fit analysis</p>
           <h3>Upload your resume and rank jobs by fit</h3>
           <p>GreenLoop will read your PDF resume, compare it against the live NZ jobs cache, and sort results by match score so mobile, tablet, and desktop users all see the same ranked list.</p>
+          <div id="resume-suggestions" class="resume-suggestion-list hidden"></div>
         </div>
         <div class="resume-match-actions">
           <label class="resume-match-upload" for="resume-match-upload">
@@ -397,6 +464,19 @@
       </div>
     </div>
   </dialog>
+  <dialog id="job-match-detail-dialog" style="max-width:760px;width:min(94vw,760px);border:none;border-radius:22px;padding:0;overflow:hidden">
+    <div style="margin:0;background:#fff">
+      <div style="padding:20px 22px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
+        <div>
+          <p class="eyebrow" style="margin:0 0 6px">Detailed fit analysis</p>
+          <h2 id="job-match-detail-title" style="margin:0;font-size:20px">Job fit</h2>
+          <p id="job-match-detail-subtitle" style="margin:6px 0 0;color:#666;font-size:13px"></p>
+        </div>
+        <button id="job-match-detail-close" type="button" class="btn-ghost">Close</button>
+      </div>
+      <div id="job-match-detail-body" class="match-detail-grid"></div>
+    </div>
+  </dialog>
   <datalist id="opportunity-location-options">
     <option value="Auckland"></option>
     <option value="Auckland CBD"></option>
@@ -416,6 +496,9 @@
       cvUrl: '',
       uploadedName: '',
       matchMode: false,
+      lastResumeSuggestions: [],
+      lastResumeSignals: null,
+      lastRankedJobs: [],
     };
     const notify = (msg, isError = false) => {
       if (window.GreenLoop?.showToast) {
@@ -443,6 +526,67 @@
       status.classList.toggle('error', !!isError);
     }
 
+    function renderResumeSuggestions(list = [], signals = null) {
+      const root = $('#resume-suggestions');
+      if (!root) return;
+      const signalBits = [];
+      if (signals?.education?.length) signalBits.push(`Study: ${signals.education.slice(0, 2).join(', ')}`);
+      if (signals?.domains?.length) signalBits.push(`Background: ${signals.domains.slice(0, 2).join(', ')}`);
+      if (signals?.skills?.length) signalBits.push(`Tools: ${signals.skills.slice(0, 3).join(', ')}`);
+      const items = [...signalBits, ...(Array.isArray(list) ? list : [])];
+      if (!items.length) {
+        root.classList.add('hidden');
+        root.innerHTML = '';
+        return;
+      }
+      root.classList.remove('hidden');
+      root.innerHTML = items.slice(0, 5).map(item => `<div class="resume-suggestion-item">${item}</div>`).join('');
+    }
+
+    function renderDetailTags(items = [], tone = 'good') {
+      if (!items.length) return '<span class="match-detail-tag">No strong signal yet</span>';
+      return items.map(item => `<span class="match-detail-tag ${tone}">${item}</span>`).join('');
+    }
+
+    function openJobMatchDetails(jobId) {
+      const job = jobsState.lastRankedJobs.find(item => String(item.id) === String(jobId));
+      if (!job || !job.detailMatch) return;
+      const d = job.detailMatch || {};
+      $('#job-match-detail-title').textContent = `${job.title || 'Job fit'} · Match ${Number(job.matchScore || 0)}%`;
+      $('#job-match-detail-subtitle').textContent = `${job.company || 'Unknown company'} · ${job.location || 'NZ'} · ${job.categoryLabel || 'General'}`;
+      $('#job-match-detail-body').innerHTML = `
+        <div class="match-detail-block">
+          <h4>Why this role fits</h4>
+          <div class="match-detail-tags">${renderDetailTags((job.matchReasons || []).slice(0, 6), 'good')}</div>
+        </div>
+        <div class="match-detail-block">
+          <h4>Matched background signals</h4>
+          <div class="match-detail-tags">${renderDetailTags((d.matchedDomains || []).map(item => item.label), 'good')}</div>
+        </div>
+        <div class="match-detail-block">
+          <h4>Matched study / major signals</h4>
+          <div class="match-detail-tags">${renderDetailTags((d.matchedEducation || []).map(item => item.label), 'good')}</div>
+        </div>
+        <div class="match-detail-block">
+          <h4>Matched project signals</h4>
+          <div class="match-detail-tags">${renderDetailTags((d.matchedProjects || []).map(item => item.label), 'good')}</div>
+        </div>
+        <div class="match-detail-block">
+          <h4>Matched tool stack</h4>
+          <div class="match-detail-tags">${renderDetailTags((d.matchedSkills || []).map(item => item.label), 'good')}</div>
+        </div>
+        <div class="match-detail-block">
+          <h4>What would improve this match</h4>
+          <div class="match-detail-tags">${renderDetailTags((d.missingSkills || []).concat(d.missingDomains || []).concat(d.missingProjects || []).slice(0, 6).map(item => item.label), 'miss')}</div>
+        </div>
+        <div class="match-detail-block">
+          <h4>Resume optimization suggestions</h4>
+          <div class="resume-suggestion-list">${(d.optimizationTips || jobsState.lastResumeSuggestions || ['Add stronger project and skill evidence to improve ranking.']).map(item => `<div class="resume-suggestion-item">${item}</div>`).join('')}</div>
+        </div>
+      `;
+      $('#job-match-detail-dialog').showModal();
+    }
+
     async function uploadResume(file) {
       const form = new FormData();
       form.append('file', file);
@@ -465,9 +609,11 @@
       if (!jobs.length) {
         grid.innerHTML = '<div class="empty-state"><h3>No jobs found</h3><p>Try different keywords.</p></div>';
         if (count) count.textContent = '0 jobs';
+        jobsState.lastRankedJobs = [];
         return;
       }
       const totalCount = typeof total === 'number' ? total : jobs.length;
+      jobsState.lastRankedJobs = jobs;
       if (seekCount) seekCount.textContent = totalCount;
       if (count) count.textContent = matchedMode ? `${totalCount} jobs ranked by fit` : totalCount + ' jobs';
 
@@ -497,10 +643,20 @@
           ${j.description ? `<p class="job-card-desc">${j.description}</p>` : ''}
           <div class="job-card-footer">
             <span class="job-card-date">${date}</span>
-            <span class="apply-link">Apply →</span>
+            <div class="job-card-footer-actions">
+              ${matchedMode ? `<button class="job-detail-btn" type="button" data-job-detail="${j.id}">View fit</button>` : ''}
+              <span class="apply-link">Apply →</span>
+            </div>
           </div>
         </a>`;
       }).join('');
+      grid.querySelectorAll('[data-job-detail]').forEach((button) => {
+        button.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          openJobMatchDetails(button.dataset.jobDetail);
+        });
+      });
     }
 
     async function loadJobs(params, opts = {}) {
@@ -521,12 +677,16 @@
         }
         if (!resp.ok) throw new Error('API error');
         const data = await resp.json();
+        jobsState.lastResumeSuggestions = Array.isArray(data.resumeSuggestions) ? data.resumeSuggestions : [];
+        jobsState.lastResumeSignals = data.resumeSignals || null;
         jobsState.matchMode = matched && !!jobsState.cvUrl;
         renderJobs(data.jobs || [], data.total, { matched: jobsState.matchMode });
+        renderResumeSuggestions(jobsState.matchMode ? jobsState.lastResumeSuggestions : [], jobsState.matchMode ? jobsState.lastResumeSignals : null);
         if (jobsState.matchMode) {
           setResumeStatus('Resume ranking is active. Search and location filters now keep jobs sorted by fit.');
         } else if (!jobsState.cvUrl) {
           setResumeStatus('Upload a PDF resume, then rank the live NZ jobs feed by fit.');
+          renderResumeSuggestions([], null);
         }
       } catch(e) {
         grid.innerHTML = '<div class="empty-state"><h3>Failed to load</h3><p>Could not reach jobs API.</p></div>';
@@ -569,11 +729,16 @@
       jobsState.cvUrl = '';
       jobsState.uploadedName = '';
       jobsState.matchMode = false;
+      jobsState.lastResumeSuggestions = [];
+      jobsState.lastResumeSignals = null;
+      jobsState.lastRankedJobs = [];
       $('#resume-match-upload').value = '';
       $('#resume-match-upload-label').textContent = 'Upload PDF resume';
       setResumeStatus('Upload a PDF resume, then rank the live NZ jobs feed by fit.');
+      renderResumeSuggestions([], null);
       await loadJobs(currentFilters(), { matched: false });
     });
+    $('#job-match-detail-close').addEventListener('click', () => $('#job-match-detail-dialog').close());
     $('#reset-btn').addEventListener('click', async (event) => {
       const button = event.currentTarget;
       $('#search-keyword').value = '';

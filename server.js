@@ -466,6 +466,53 @@ const detectExperienceLevel = (text) => {
   return { key: "general", label: "General experience" };
 };
 
+const differenceKeys = (sourceSet, targetSet) => Array.from(sourceSet).filter((key) => !targetSet.has(key));
+
+const buildResumeSuggestions = (resumeProfile, rankedJobs) => {
+  if (!rankedJobs.length) return [];
+  const topJobs = rankedJobs.slice(0, 5);
+  const wantedDomainLabels = Array.from(
+    new Set(
+      topJobs.flatMap((job) => (job.detailMatch?.jobDomains || []).map((item) => item.label))
+    )
+  );
+  const missingDomainLabels = Array.from(
+    new Set(
+      topJobs.flatMap((job) => (job.detailMatch?.missingDomains || []).map((item) => item.label))
+    )
+  );
+  const missingSkillLabels = Array.from(
+    new Set(
+      topJobs.flatMap((job) => (job.detailMatch?.missingSkills || []).map((item) => item.label))
+    )
+  );
+  const missingProjectLabels = Array.from(
+    new Set(
+      topJobs.flatMap((job) => (job.detailMatch?.missingProjects || []).map((item) => item.label))
+    )
+  );
+  const suggestions = [];
+  if (wantedDomainLabels.length) {
+    suggestions.push(`Target direction: ${wantedDomainLabels.slice(0, 3).join(", ")} roles are showing up most often.`);
+  }
+  if (missingDomainLabels.length) {
+    suggestions.push(`Add sharper domain wording for ${missingDomainLabels.slice(0, 3).join(", ")} if you have relevant exposure.`);
+  }
+  if (missingSkillLabels.length) {
+    suggestions.push(`Strengthen tool evidence with ${missingSkillLabels.slice(0, 4).join(", ")} in projects, bullet points, or certifications.`);
+  }
+  if (missingProjectLabels.length) {
+    suggestions.push(`Your resume would rank better with outcome-focused project bullets around ${missingProjectLabels.slice(0, 3).join(", ")}.`);
+  }
+  if (!resumeProfile.education.length) {
+    suggestions.push("Spell out your major, degree, and expected graduation date so employers can map your academic background faster.");
+  }
+  if (!resumeProfile.projects.length) {
+    suggestions.push("Add 2–3 project bullets with action verbs, scale, and measurable outcomes to improve project-fit scoring.");
+  }
+  return suggestions.slice(0, 5);
+};
+
 const resolveUploadPath = (uploadUrl) => {
   const relative = String(uploadUrl || "").trim();
   if (!relative.startsWith("/uploads/")) {
@@ -571,6 +618,10 @@ const scoreJobMatch = (job, resumeProfile) => {
   const matchedEducation = jobProfile.education.filter((item) => resumeProfile.educationSet.has(item.key));
   const matchedProjects = jobProfile.projects.filter((item) => resumeProfile.projectSet.has(item.key));
   const matchedSkills = jobProfile.skills.filter((item) => resumeProfile.skillSet.has(item.key));
+  const missingDomains = differenceKeys(jobProfile.domainSet, resumeProfile.domainSet).map((key) => jobProfile.domains.find((item) => item.key === key)).filter(Boolean);
+  const missingEducation = differenceKeys(jobProfile.educationSet, resumeProfile.educationSet).map((key) => jobProfile.education.find((item) => item.key === key)).filter(Boolean);
+  const missingProjects = differenceKeys(jobProfile.projectSet, resumeProfile.projectSet).map((key) => jobProfile.projects.find((item) => item.key === key)).filter(Boolean);
+  const missingSkills = differenceKeys(jobProfile.skillSet, resumeProfile.skillSet).map((key) => jobProfile.skills.find((item) => item.key === key)).filter(Boolean);
   const sameExperienceBand =
     resumeProfile.experienceLevel.key !== "general" &&
     jobProfile.experienceLevel.key !== "general" &&
@@ -620,6 +671,27 @@ const scoreJobMatch = (job, resumeProfile) => {
       matchedLocation.length ? `Location overlap: ${matchedLocation.slice(0, 2).join(", ")}` : "",
       jobProfile.categoryInfo.categoryLabel !== "General" ? `Category fit: ${jobProfile.categoryInfo.categoryLabel}` : "",
     ].filter(Boolean),
+    detailMatch: {
+      matchedDomains,
+      matchedEducation,
+      matchedProjects,
+      matchedSkills,
+      missingDomains: missingDomains.slice(0, 4),
+      missingEducation: missingEducation.slice(0, 3),
+      missingProjects: missingProjects.slice(0, 3),
+      missingSkills: missingSkills.slice(0, 5),
+      matchedTitle,
+      matchedLocation,
+      resumeExperience: resumeProfile.experienceLevel,
+      jobExperience: jobProfile.experienceLevel,
+      jobDomains: jobProfile.domains,
+      optimizationTips: [
+        missingDomains.length ? `Add stronger domain evidence for ${uniqueLabels(missingDomains).slice(0, 2).join(", ")}.` : "",
+        missingProjects.length ? `Show project impact around ${uniqueLabels(missingProjects).slice(0, 2).join(", ")} with outcomes and numbers.` : "",
+        missingSkills.length ? `Mention tools like ${uniqueLabels(missingSkills).slice(0, 3).join(", ")} if you have used them.` : "",
+        !matchedTitle.length ? `Mirror the job title language more directly in your summary and experience bullets.` : "",
+      ].filter(Boolean).slice(0, 4),
+    },
   };
 };
 
@@ -658,7 +730,7 @@ const filterJobs = (jobs, query) => {
 
 const sortJobsByResumeMatch = (jobs, resumeText) => {
   const resumeProfile = buildResumeProfile(resumeText);
-  return jobs
+  const rankedJobs = jobs
     .map((job) => {
       const match = scoreJobMatch(job, resumeProfile);
       const category = classifyJobCategory(job);
@@ -669,12 +741,24 @@ const sortJobsByResumeMatch = (jobs, resumeText) => {
         matchScore: match.score,
         matchedKeywords: match.matchedKeywords,
         matchReasons: match.matchReasons,
+        detailMatch: match.detailMatch,
       };
     })
     .sort((a, b) => {
       if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
       return new Date(b.listedAt || 0) - new Date(a.listedAt || 0);
     });
+  return {
+    jobs: rankedJobs,
+    resumeSuggestions: buildResumeSuggestions(resumeProfile, rankedJobs),
+    resumeSignals: {
+      domains: resumeProfile.domains.map((item) => item.label),
+      education: resumeProfile.education.map((item) => item.label),
+      projects: resumeProfile.projects.map((item) => item.label),
+      skills: resumeProfile.skills.map((item) => item.label),
+      experienceLevel: resumeProfile.experienceLevel.label,
+    },
+  };
 };
 
 const enrichJobs = (jobs) =>
@@ -3317,13 +3401,15 @@ app.post(
     const resumeText = await extractResumeText(cvUrl);
     const jobs = parseJobsFile();
     const filtered = filterJobs(jobs, req.body || req.query || {});
-    const rankedJobs = sortJobsByResumeMatch(filtered.jobs, resumeText);
+    const ranked = sortJobsByResumeMatch(filtered.jobs, resumeText);
 
     res.json({
-      jobs: rankedJobs,
+      jobs: ranked.jobs,
       total: filtered.total,
       source: "greenloop-resume-match",
       resumePreview: resumeText.slice(0, 280),
+      resumeSuggestions: ranked.resumeSuggestions,
+      resumeSignals: ranked.resumeSignals,
     });
   })
 );
