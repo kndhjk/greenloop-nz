@@ -412,6 +412,7 @@
   <script>
   (function() {
     const $ = s => document.querySelector(s);
+    const sessionReady = window.GreenLoop ? GreenLoop.bootstrap() : Promise.resolve(null);
     const jobsState = {
       cvUrl: '',
       uploadedName: '',
@@ -444,8 +445,10 @@
     }
 
     async function uploadResume(file) {
-      if (!window.GreenLoop?.state?.token) {
-        window.location.href = '/login';
+      const activeUser = await sessionReady.catch(() => null);
+      if (!window.GreenLoop?.state?.token || !activeUser) {
+        setResumeStatus('Sign in first, then upload a PDF resume here.', true);
+        notify('Sign in required before resume analysis.', true);
         return;
       }
       const form = new FormData();
@@ -514,12 +517,12 @@
       const matched = !!opts.matched;
       try {
         let resp;
-        if (matched && jobsState.cvUrl) {
-          resp = await fetch('/api/jobs/match', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ limit: 100, cvUrl: jobsState.cvUrl, ...params }),
-          });
+      if (matched && jobsState.cvUrl) {
+        resp = await fetch('/api/jobs/match', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ limit: 100, cvUrl: jobsState.cvUrl, ...params }),
+        });
         } else {
           const qs = new URLSearchParams({ limit: 100, ...params }).toString();
           resp = await fetch('/api/jobs?' + qs);
@@ -601,7 +604,6 @@
     });
 
     loadJobs({}, { matched: false });
-    if (window.GreenLoop) GreenLoop.bootstrap();
   })();
   </script>
 </body>
