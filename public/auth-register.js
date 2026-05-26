@@ -194,7 +194,7 @@ registerForm?.addEventListener("submit", async (event) => {
   } catch (error) {
     GreenLoop.showToast(error.message, true);
   } finally {
-    if (regSubmitBtn) { regSubmitBtn.disabled = false; regSubmitBtn.textContent = "Register"; }
+    if (regSubmitBtn) { regSubmitBtn.disabled = false; regSubmitBtn.textContent = "Send verification code"; }
   }
 });
 
@@ -206,7 +206,7 @@ document.getElementById("verify-submit")?.addEventListener("click", async () => 
   } catch (error) {
     GreenLoop.showToast(error.message, true);
   } finally {
-    if (verifySubmitBtn) { verifySubmitBtn.disabled = false; verifySubmitBtn.textContent = "Verify"; }
+    if (verifySubmitBtn) { verifySubmitBtn.disabled = false; verifySubmitBtn.textContent = "Verify and register"; }
   }
 });
 

@@ -1,5 +1,54 @@
 /* Home page only */
 
+.home-page {
+  display: grid;
+  gap: 22px;
+}
+
+.home-layer {
+  padding: 24px;
+  border-radius: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.94);
+  box-shadow: 0 18px 42px rgba(48, 40, 34, 0.08);
+}
+
+.home-layer-soft {
+  background:
+    radial-gradient(circle at top right, rgba(228, 57, 60, 0.08), transparent 24%),
+    rgba(255, 255, 255, 0.78);
+}
+
+.home-layer-plain {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 250, 242, 0.9));
+}
+
+.home-layer-warm {
+  background:
+    radial-gradient(circle at top left, rgba(239, 203, 120, 0.14), transparent 26%),
+    linear-gradient(180deg, rgba(255, 251, 245, 0.92), rgba(255, 247, 238, 0.96));
+}
+
+.home-section-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.home-section-head .eyebrow {
+  margin: 0 0 6px;
+}
+
+.home-section-note {
+  max-width: 420px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .carousel-wrap {
   position: relative;
   overflow: hidden;
@@ -128,14 +177,6 @@
 .carousel-dot.active {
   width: 26px;
   background: #fff;
-}
-
-.jd-categories,
-.home-band,
-.home-picks,
-.home-columns,
-.home-cta-band {
-  margin-bottom: 22px;
 }
 
 .section-title {
@@ -377,6 +418,16 @@
 }
 
 @media (max-width: 760px) {
+  .home-layer {
+    padding: 18px;
+    border-radius: 24px;
+  }
+
+  .home-section-head {
+    align-items: start;
+    flex-direction: column;
+  }
+
   .carousel-slide {
     min-height: 320px;
   }
