@@ -267,6 +267,7 @@ const MATCH_STOPWORDS = new Set([
   "skill", "using", "used", "who", "what", "when", "where", "how", "able", "required", "preferred",
   "including", "across", "within", "through", "need", "needs", "want", "wants", "good", "strong",
   "well", "one", "two", "three", "four", "five", "day", "days", "week", "weeks", "month", "months",
+  "project", "projects", "university", "bachelor", "master", "resume", "curriculum", "vitae", "student",
 ]);
 
 const JOB_CATEGORY_RULES = [
@@ -281,6 +282,153 @@ const JOB_CATEGORY_RULES = [
   { key: "trade", label: "Trades", terms: ["electrician", "plumber", "builder", "technician", "trade", "mechanic", "installer"] },
 ];
 
+const MATCH_SIGNAL_RULES = [
+  {
+    key: "software-engineering",
+    label: "Software engineering",
+    bucket: "domains",
+    terms: ["software engineer", "software engineering", "full stack", "frontend", "backend", "web app", "api", "microservice"],
+  },
+  {
+    key: "data-analytics",
+    label: "Data analytics",
+    bucket: "domains",
+    terms: ["data analyst", "data analytics", "data science", "business intelligence", "power bi", "tableau", "reporting", "dashboard"],
+  },
+  {
+    key: "product-delivery",
+    label: "Product and delivery",
+    bucket: "domains",
+    terms: ["product manager", "product owner", "agile", "scrum", "roadmap", "stakeholder", "delivery"],
+  },
+  {
+    key: "cloud-devops",
+    label: "Cloud and DevOps",
+    bucket: "domains",
+    terms: ["aws", "azure", "gcp", "cloud", "docker", "kubernetes", "devops", "ci/cd", "terraform"],
+  },
+  {
+    key: "finance-accounting",
+    label: "Finance and accounting",
+    bucket: "domains",
+    terms: ["finance", "financial", "accounting", "accounts", "audit", "tax", "budget", "forecast", "payroll"],
+  },
+  {
+    key: "sales-customer",
+    label: "Sales and customer growth",
+    bucket: "domains",
+    terms: ["sales", "business development", "account manager", "customer success", "retail", "lead generation", "crm"],
+  },
+  {
+    key: "marketing-comms",
+    label: "Marketing and communications",
+    bucket: "domains",
+    terms: ["marketing", "communications", "seo", "campaign", "content", "brand", "social media"],
+  },
+  {
+    key: "legal-compliance",
+    label: "Legal and compliance",
+    bucket: "domains",
+    terms: ["legal", "law", "lawyer", "solicitor", "compliance", "regulatory", "policy", "contract"],
+  },
+  {
+    key: "operations-logistics",
+    label: "Operations and logistics",
+    bucket: "domains",
+    terms: ["operations", "logistics", "supply chain", "warehouse", "procurement", "planning", "coordinator"],
+  },
+  {
+    key: "education-training",
+    label: "Education and training",
+    bucket: "domains",
+    terms: ["teacher", "education", "tutor", "lecturer", "training", "curriculum"],
+  },
+  {
+    key: "healthcare",
+    label: "Healthcare",
+    bucket: "domains",
+    terms: ["nurse", "clinical", "healthcare", "patient", "medical", "care", "pharmacy"],
+  },
+  {
+    key: "information-technology",
+    label: "Information technology",
+    bucket: "education",
+    terms: ["information technology", "computer science", "software engineering", "ict", "computing", "informatics"],
+  },
+  {
+    key: "business-commerce",
+    label: "Business and commerce",
+    bucket: "education",
+    terms: ["commerce", "business", "management", "economics", "marketing", "international business"],
+  },
+  {
+    key: "finance-accounting-major",
+    label: "Finance or accounting major",
+    bucket: "education",
+    terms: ["finance major", "accounting major", "accounting", "finance", "economics", "banking"],
+  },
+  {
+    key: "law-major",
+    label: "Law background",
+    bucket: "education",
+    terms: ["llb", "law degree", "juris doctor", "legal studies", "law"],
+  },
+  {
+    key: "project-delivery",
+    label: "Project delivery",
+    bucket: "projects",
+    terms: ["built", "developed", "implemented", "delivered", "launched", "designed", "deployed", "created"],
+  },
+  {
+    key: "leadership-collaboration",
+    label: "Leadership and collaboration",
+    bucket: "projects",
+    terms: ["led", "managed", "coordinated", "collaborated", "stakeholder", "cross-functional", "presented"],
+  },
+  {
+    key: "research-analysis",
+    label: "Research and analysis",
+    bucket: "projects",
+    terms: ["researched", "analysed", "analyzed", "insights", "evaluation", "findings", "modelled", "modeled"],
+  },
+  {
+    key: "sql",
+    label: "SQL",
+    bucket: "skills",
+    terms: ["sql", "mysql", "postgresql", "sqlite", "database"],
+  },
+  {
+    key: "python",
+    label: "Python",
+    bucket: "skills",
+    terms: ["python", "pandas", "numpy", "scikit", "jupyter"],
+  },
+  {
+    key: "javascript",
+    label: "JavaScript",
+    bucket: "skills",
+    terms: ["javascript", "typescript", "node.js", "nodejs", "react", "vue", "frontend"],
+  },
+  {
+    key: "excel",
+    label: "Excel",
+    bucket: "skills",
+    terms: ["excel", "spreadsheet", "vlookup", "pivot table"],
+  },
+  {
+    key: "crm",
+    label: "CRM",
+    bucket: "skills",
+    terms: ["salesforce", "hubspot", "crm"],
+  },
+];
+
+const EXPERIENCE_LEVEL_RULES = [
+  { key: "intern", label: "Intern or entry-level", terms: ["intern", "internship", "graduate", "entry level", "junior"] },
+  { key: "mid", label: "Mid-level delivery", terms: ["coordinator", "specialist", "analyst", "consultant", "advisor"] },
+  { key: "senior", label: "Senior ownership", terms: ["senior", "lead", "manager", "principal", "head of", "director"] },
+];
+
 const tokenizeText = (value) =>
   String(value || "")
     .toLowerCase()
@@ -290,6 +438,33 @@ const tokenizeText = (value) =>
     .filter((token) => token.length >= 2 && !MATCH_STOPWORDS.has(token));
 
 const uniqueTokens = (value) => Array.from(new Set(tokenizeText(value)));
+
+const uniqueLabels = (items) => Array.from(new Set(items.map((item) => item.label)));
+
+const detectSignals = (text, bucket = null) => {
+  const haystack = ` ${String(text || "").toLowerCase()} `;
+  return MATCH_SIGNAL_RULES.filter((rule) => (!bucket || rule.bucket === bucket) && rule.terms.some((term) => haystack.includes(` ${term.toLowerCase()} `) || haystack.includes(term.toLowerCase()))).map((rule) => ({
+    key: rule.key,
+    label: rule.label,
+    bucket: rule.bucket,
+  }));
+};
+
+const detectExperienceLevel = (text) => {
+  const haystack = String(text || "").toLowerCase();
+  for (const rule of EXPERIENCE_LEVEL_RULES) {
+    if (rule.terms.some((term) => haystack.includes(term))) {
+      return { key: rule.key, label: rule.label };
+    }
+  }
+  const yearMatch = haystack.match(/(\d+)\+?\s+years?/);
+  if (yearMatch) {
+    const years = Number(yearMatch[1]);
+    if (years >= 5) return { key: "senior", label: "Senior ownership" };
+    if (years >= 2) return { key: "mid", label: "Mid-level delivery" };
+  }
+  return { key: "general", label: "General experience" };
+};
 
 const resolveUploadPath = (uploadUrl) => {
   const relative = String(uploadUrl || "").trim();
@@ -323,7 +498,24 @@ const extractResumeText = async (uploadUrl) => {
 const buildResumeProfile = (resumeText) => {
   const resumeTokens = uniqueTokens(resumeText);
   const resumeSet = new Set(resumeTokens);
-  return { resumeTokens, resumeSet };
+  const domains = detectSignals(resumeText, "domains");
+  const education = detectSignals(resumeText, "education");
+  const projects = detectSignals(resumeText, "projects");
+  const skills = detectSignals(resumeText, "skills");
+  const experienceLevel = detectExperienceLevel(resumeText);
+  return {
+    resumeTokens,
+    resumeSet,
+    domains,
+    domainSet: new Set(domains.map((item) => item.key)),
+    education,
+    educationSet: new Set(education.map((item) => item.key)),
+    projects,
+    projectSet: new Set(projects.map((item) => item.key)),
+    skills,
+    skillSet: new Set(skills.map((item) => item.key)),
+    experienceLevel,
+  };
 };
 
 const classifyJobCategory = (job) => {
@@ -336,19 +528,53 @@ const classifyJobCategory = (job) => {
   return { categoryKey: "general", categoryLabel: "General" };
 };
 
-const scoreJobMatch = (job, resumeProfile) => {
+const buildJobProfile = (job) => {
+  const combinedText = `${job.title || ""} ${job.company || ""} ${job.location || ""} ${job.description || ""}`;
   const titleTokens = uniqueTokens(job.title);
   const companyTokens = uniqueTokens(job.company);
   const locationTokens = uniqueTokens(job.location);
   const descTokens = uniqueTokens(job.description);
-  const combined = Array.from(new Set([...titleTokens, ...companyTokens, ...locationTokens, ...descTokens]));
-
-  const matchedTitle = titleTokens.filter((token) => resumeProfile.resumeSet.has(token));
-  const matchedCompany = companyTokens.filter((token) => resumeProfile.resumeSet.has(token));
-  const matchedLocation = locationTokens.filter((token) => resumeProfile.resumeSet.has(token));
-  const matchedDesc = descTokens.filter((token) => resumeProfile.resumeSet.has(token));
-  const matchedAll = combined.filter((token) => resumeProfile.resumeSet.has(token));
+  const combinedTokens = Array.from(new Set([...titleTokens, ...companyTokens, ...locationTokens, ...descTokens]));
   const categoryInfo = classifyJobCategory(job);
+  const domains = detectSignals(combinedText, "domains");
+  const education = detectSignals(combinedText, "education");
+  const projects = detectSignals(combinedText, "projects");
+  const skills = detectSignals(combinedText, "skills");
+  const experienceLevel = detectExperienceLevel(combinedText);
+  return {
+    categoryInfo,
+    titleTokens,
+    companyTokens,
+    locationTokens,
+    descTokens,
+    combinedTokens,
+    domains,
+    domainSet: new Set(domains.map((item) => item.key)),
+    education,
+    educationSet: new Set(education.map((item) => item.key)),
+    projects,
+    projectSet: new Set(projects.map((item) => item.key)),
+    skills,
+    skillSet: new Set(skills.map((item) => item.key)),
+    experienceLevel,
+  };
+};
+
+const scoreJobMatch = (job, resumeProfile) => {
+  const jobProfile = buildJobProfile(job);
+  const matchedTitle = jobProfile.titleTokens.filter((token) => resumeProfile.resumeSet.has(token));
+  const matchedCompany = jobProfile.companyTokens.filter((token) => resumeProfile.resumeSet.has(token));
+  const matchedLocation = jobProfile.locationTokens.filter((token) => resumeProfile.resumeSet.has(token));
+  const matchedDesc = jobProfile.descTokens.filter((token) => resumeProfile.resumeSet.has(token));
+  const matchedAll = jobProfile.combinedTokens.filter((token) => resumeProfile.resumeSet.has(token));
+  const matchedDomains = jobProfile.domains.filter((item) => resumeProfile.domainSet.has(item.key));
+  const matchedEducation = jobProfile.education.filter((item) => resumeProfile.educationSet.has(item.key));
+  const matchedProjects = jobProfile.projects.filter((item) => resumeProfile.projectSet.has(item.key));
+  const matchedSkills = jobProfile.skills.filter((item) => resumeProfile.skillSet.has(item.key));
+  const sameExperienceBand =
+    resumeProfile.experienceLevel.key !== "general" &&
+    jobProfile.experienceLevel.key !== "general" &&
+    resumeProfile.experienceLevel.key === jobProfile.experienceLevel.key;
 
   let rawScore = 0;
   rawScore += matchedTitle.length * 16;
@@ -356,19 +582,43 @@ const scoreJobMatch = (job, resumeProfile) => {
   rawScore += matchedLocation.length * 4;
   rawScore += matchedCompany.length * 2;
   rawScore += Math.min(matchedAll.length, 12) * 2;
+  rawScore += matchedDomains.length * 18;
+  rawScore += matchedEducation.length * 15;
+  rawScore += matchedProjects.length * 10;
+  rawScore += matchedSkills.length * 12;
+  if (sameExperienceBand) rawScore += 12;
 
-  const denominator = Math.max(titleTokens.length * 16 + Math.min(descTokens.length, 20) * 5 + locationTokens.length * 4, 40);
+  const denominator = Math.max(
+    jobProfile.titleTokens.length * 16 +
+      Math.min(jobProfile.descTokens.length, 20) * 5 +
+      jobProfile.locationTokens.length * 4 +
+      Math.max(jobProfile.domains.length, 1) * 18 +
+      Math.max(jobProfile.skills.length, 1) * 12,
+    55
+  );
   const normalizedScore = Math.min(100, Math.max(0, Math.round((rawScore / denominator) * 100)));
-  const highlightedKeywords = Array.from(new Set([...matchedTitle, ...matchedLocation, ...matchedDesc])).slice(0, 8);
+  const highlightedKeywords = Array.from(
+    new Set([
+      ...matchedTitle,
+      ...matchedLocation,
+      ...matchedDesc,
+      ...matchedDomains.map((item) => item.label),
+      ...matchedSkills.map((item) => item.label),
+    ])
+  ).slice(0, 10);
 
   return {
     score: normalizedScore,
     matchedKeywords: highlightedKeywords,
     matchReasons: [
-      matchedTitle.length ? `Title overlap: ${matchedTitle.slice(0, 3).join(", ")}` : "",
-      matchedDesc.length ? `Skill overlap: ${matchedDesc.slice(0, 4).join(", ")}` : "",
+      matchedDomains.length ? `Background fit: ${uniqueLabels(matchedDomains).slice(0, 2).join(", ")}` : "",
+      matchedEducation.length ? `Study or major fit: ${uniqueLabels(matchedEducation).slice(0, 2).join(", ")}` : "",
+      matchedProjects.length ? `Project experience fit: ${uniqueLabels(matchedProjects).slice(0, 2).join(", ")}` : "",
+      matchedSkills.length ? `Tooling fit: ${uniqueLabels(matchedSkills).slice(0, 4).join(", ")}` : "",
+      matchedTitle.length ? `Role-title fit: ${matchedTitle.slice(0, 3).join(", ")}` : "",
+      sameExperienceBand ? `Experience fit: ${jobProfile.experienceLevel.label}` : "",
       matchedLocation.length ? `Location overlap: ${matchedLocation.slice(0, 2).join(", ")}` : "",
-      categoryInfo.categoryLabel !== "General" ? `Category fit: ${categoryInfo.categoryLabel}` : "",
+      jobProfile.categoryInfo.categoryLabel !== "General" ? `Category fit: ${jobProfile.categoryInfo.categoryLabel}` : "",
     ].filter(Boolean),
   };
 };
