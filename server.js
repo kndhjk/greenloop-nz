@@ -2959,6 +2959,24 @@ app.post(
   })
 );
 
+app.delete(
+  "/api/chats/:id",
+  authRequired,
+  asyncHandler(async (req, res) => {
+    const conversationId = Number(req.params.id);
+    const [conversations] = await pool.execute("SELECT * FROM conversations WHERE id = ? LIMIT 1", [conversationId]);
+    const conversation = conversations[0];
+    if (!conversation) return res.status(404).json({ error: "Conversation not found." });
+    if (![conversation.buyer_id, conversation.seller_id].includes(req.user.id)) {
+      return res.status(403).json({ error: "Not allowed." });
+    }
+
+    await pool.execute("DELETE FROM conversations WHERE id = ?", [conversationId]);
+    await logUserActivity(req, req.user.id, "chat_delete", "conversation", conversationId, {});
+    res.json({ ok: true });
+  })
+);
+
 app.get(
   "/api/reservations/mine",
   authRequired,

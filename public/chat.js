@@ -245,6 +245,7 @@ const openThreadMobile = (threadId) => {
         </div>
       </div>
       <div class="chat-stage-actions">
+        <button class="ghost-button" id="chat-delete-button-mobile" type="button">Delete chat</button>
         <a class="ghost-button" href="/seller?id=${selected.otherUser.id}">Profile</a>
       </div>
     </div>
@@ -290,6 +291,9 @@ const openThreadMobile = (threadId) => {
     onMobileKeyboardHide();
     switchToMobile();
     renderThreads();
+  });
+  document.getElementById("chat-delete-button-mobile")?.addEventListener("click", () => {
+    deleteSelectedConversation();
   });
 
   // Auto-resize textarea
@@ -378,6 +382,70 @@ const openThreadMobile = (threadId) => {
   }
 };
 
+const selectConversation = async (threadId, options = {}) => {
+  const nextThreadId = Number(threadId || 0);
+  if (!nextThreadId) return;
+
+  const { skipHistory = false } = options;
+  const threadChanged = Number(chatState.selectedId) !== nextThreadId;
+  chatState.selectedId = nextThreadId;
+
+  if (threadChanged) {
+    resetConversationState();
+  }
+
+  if (!skipHistory) {
+    history.replaceState({}, "", `/chat?conversation=${nextThreadId}`);
+  }
+
+  renderThreads();
+  syncHeader();
+
+  if (chatState.isMobileView) {
+    openThreadMobile(nextThreadId);
+  }
+
+  await loadMessages(false);
+  await loadConversations();
+  renderThreads();
+  syncHeader();
+};
+
+const deleteSelectedConversation = async () => {
+  if (!chatState.selectedId) return;
+
+  const currentId = Number(chatState.selectedId);
+  const currentThread = chatState.conversations.find((thread) => Number(thread.id) === currentId);
+  const label = currentThread?.otherUser?.fullName || "this chat";
+  if (!window.confirm(`Delete chat with ${label}? This removes the conversation for both sides.`)) {
+    return;
+  }
+
+  try {
+    await GreenLoop.api(`/api/chats/${currentId}`, { method: "DELETE" });
+    GreenLoop.showToast("Chat deleted.");
+    resetConversationState();
+    chatState.conversations = chatState.conversations.filter((thread) => Number(thread.id) !== currentId);
+    chatState.selectedId = Number(chatState.conversations[0]?.id || 0);
+
+    if (chatState.selectedId) {
+      await selectConversation(chatState.selectedId);
+      return;
+    }
+
+    history.replaceState({}, "", "/chat");
+    renderThreads();
+    syncUnreadIndicators();
+    syncHeader();
+    renderMessages([], GreenLoop.state.user.id);
+    if (chatState.isMobileView) {
+      renderMobileEmptyState();
+    }
+  } catch (error) {
+    GreenLoop.showToast(error.message || "Delete failed.", true);
+  }
+};
+
 const uploadImageMobile = async () => {
   const input = document.getElementById("chat-image-input-mobile");
   const file = input?.files?.[0] || chatState.pendingImageFile;
@@ -451,6 +519,29 @@ const clearPendingImage = () => {
   if (mobileInput) mobileInput.value = "";
 };
 
+const resetConversationState = () => {
+  window._chatMessages = [];
+  chatState.renderedMobileThreadId = 0;
+  chatState.lastMessageId = 0;
+  chatState.lastIncomingMessageId = 0;
+  chatState.oldestMessageId = null;
+  chatState.hasMoreMessages = false;
+  chatState.isLoadingMore = false;
+  chatState.didUserScrollUp = false;
+};
+
+const renderMobileEmptyState = () => {
+  const stage = document.getElementById("chat-mobile-stage");
+  if (!stage) return;
+  stage.innerHTML = `
+    <div class="chat-empty-panel">
+      <div class="chat-empty-icon">💬</div>
+      <h3>Pick a thread above</h3>
+      <p>Swipe to find your conversation, then start chatting.</p>
+    </div>
+  `;
+};
+
 const renderThreads = () => {
   const target = document.getElementById("chat-thread-list");
   const strip = document.getElementById("chat-thread-strip");
@@ -501,6 +592,18 @@ const renderThreads = () => {
 
   if (target) target.innerHTML = filtered.map(threadHtml).join("");
 
+  if (target) {
+    target.querySelectorAll(".chat-thread-card").forEach((el) => {
+      el.addEventListener("click", async (event) => {
+        event.preventDefault();
+        const href = el.getAttribute("href") || "";
+        const match = href.match(/conversation=(\d+)/);
+        if (!match) return;
+        await selectConversation(Number(match[1]));
+      });
+    });
+  }
+
   if (strip) {
     strip.innerHTML = filtered.map((thread) => {
       const active = Number(thread.id) === Number(chatState.selectedId);
@@ -514,8 +617,8 @@ const renderThreads = () => {
     }).join("");
 
     strip.querySelectorAll(".chat-thread-strip-item").forEach((el) => {
-      el.addEventListener("click", () => {
-        openThreadMobile(Number(el.dataset.threadId));
+      el.addEventListener("click", async () => {
+        await selectConversation(Number(el.dataset.threadId));
       });
     });
   }
@@ -585,6 +688,7 @@ const syncHeader = () => {
   const presenceText = document.getElementById("chat-presence-text");
   const verifiedPill = document.getElementById("chat-verified-pill");
   const avatar = document.getElementById("chat-header-avatar");
+  const deleteButton = document.getElementById("chat-delete-button");
   const profileLink = document.getElementById("chat-profile-link");
   const itemLink = document.getElementById("chat-item-link");
   const contextCard = document.getElementById("chat-context-card");
@@ -601,6 +705,7 @@ const syncHeader = () => {
     if (presenceDot) presenceDot.classList.remove("online");
     if (verifiedPill) verifiedPill.classList.add("hidden");
     if (compose) compose.classList.add("hidden");
+    if (deleteButton) deleteButton.classList.add("hidden");
     if (profileLink) profileLink.classList.add("hidden");
     if (itemLink) itemLink.classList.add("hidden");
     if (contextCard) contextCard.classList.add("hidden");
@@ -619,6 +724,7 @@ const syncHeader = () => {
   if (presenceDot) presenceDot.classList.toggle("online", !!selected.otherUser.isOnline);
   if (verifiedPill) verifiedPill.classList.toggle("hidden", String(selected.otherUser.verificationStatus || "").toLowerCase() !== "verified");
   if (compose) compose.classList.remove("hidden");
+  if (deleteButton) deleteButton.classList.remove("hidden");
 
   if (profileLink) {
     profileLink.href = `/seller?id=${selected.otherUser.id}`;
@@ -892,6 +998,10 @@ const boot = async () => {
   document.getElementById("chat-search")?.addEventListener("input", (e) => {
     chatState.searchQuery = e.target.value;
     renderThreads();
+  });
+
+  document.getElementById("chat-delete-button")?.addEventListener("click", () => {
+    deleteSelectedConversation();
   });
 
   // Desktop send via button (Enter does not submit, lets newlines through)

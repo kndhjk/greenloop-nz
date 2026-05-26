@@ -97,7 +97,7 @@ button {
 }
 
 .button,
-button:not(.ghost-button) {
+button:not(.ghost-button):not(.thumb-card):not(.lightbox-backdrop):not(.lightbox-close):not(.lightbox-nav):not(.chat-thread-strip-item):not(.chat-back-btn):not(#chat-image-clear):not(#chat-image-clear-mobile) {
   background: linear-gradient(135deg, #e4393c 0%, #c33235 100%) !important;
   color: #fff !important;
   border: none !important;
@@ -113,7 +113,7 @@ button:not(.ghost-button) {
 
 .button:hover,
 .ghost-button:hover,
-button:not(.ghost-button):hover {
+button:not(.ghost-button):not(.thumb-card):not(.lightbox-backdrop):not(.lightbox-close):not(.lightbox-nav):not(.chat-thread-strip-item):not(.chat-back-btn):not(#chat-image-clear):not(#chat-image-clear-mobile):hover {
   transform: translateY(-2px);
   box-shadow: 0 16px 28px rgba(228, 57, 60, 0.28) !important;
 }
