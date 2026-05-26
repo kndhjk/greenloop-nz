@@ -412,7 +412,6 @@
   <script>
   (function() {
     const $ = s => document.querySelector(s);
-    const sessionReady = window.GreenLoop ? GreenLoop.bootstrap() : Promise.resolve(null);
     const jobsState = {
       cvUrl: '',
       uploadedName: '',
@@ -444,11 +443,32 @@
       status.classList.toggle('error', !!isError);
     }
 
-    async function uploadResume(file) {
-      const activeUser = await sessionReady.catch(() => null);
-      if (!window.GreenLoop?.state?.token || !activeUser) {
+    async function ensureResumeSession() {
+      if (!window.GreenLoop?.state?.token) {
         setResumeStatus('Sign in first, then upload a PDF resume here.', true);
         notify('Sign in required before resume analysis.', true);
+        return null;
+      }
+      try {
+        if (!window.GreenLoop.state.user) {
+          await GreenLoop.bootstrap();
+        }
+        if (!window.GreenLoop.state.user) {
+          const me = await GreenLoop.api('/api/auth/me');
+          window.GreenLoop.state.user = me.user || null;
+        }
+      } catch (_) {}
+      if (!window.GreenLoop?.state?.token || !window.GreenLoop?.state?.user) {
+        setResumeStatus('Your session is not ready yet. Refresh once and try the upload again.', true);
+        notify('Session check failed for resume upload.', true);
+        return null;
+      }
+      return window.GreenLoop.state.user;
+    }
+
+    async function uploadResume(file) {
+      const activeUser = await ensureResumeSession();
+      if (!activeUser) {
         return;
       }
       const form = new FormData();
@@ -568,7 +588,7 @@
     });
     $('#resume-match-run').addEventListener('click', async () => {
       if (!jobsState.cvUrl) {
-        setResumeStatus('Upload a PDF resume first.', true);
+        setResumeStatus(jobsState.uploadedName ? 'The last upload did not finish correctly. Upload the PDF once more.' : 'Upload a PDF resume first.', true);
         return;
       }
       await loadJobs(currentFilters(), { matched: true });
