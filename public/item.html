@@ -24,7 +24,11 @@
     <main class="page">
       <section class="detail-hero">
         <div class="detail-gallery">
-          <div id="item-hero-image" class="detail-image"></div>
+          <div id="item-hero-image" class="detail-image detail-image-interactive" role="button" tabindex="0" aria-label="Open gallery image">
+            <img id="item-hero-image-img" class="detail-image-media" alt="Listing image" />
+            <span id="item-image-count" class="detail-image-count">1/1</span>
+            <span class="detail-image-zoom">Tap to enlarge</span>
+          </div>
           <div id="item-thumbs" class="thumb-grid"></div>
         </div>
         <div class="detail-copy main-card">
@@ -34,10 +38,10 @@
           <p id="item-description" class="lede"></p>
           <div id="item-meta" class="meta"></div>
           <div id="item-seller" class="seller-badge-wrap"></div>
-          <div class="cta-row">
-            <a class="button icon-button" href="/services"><span>⌂</span>Arrange pickup</a>
+          <div class="cta-row" id="item-action-row">
+            <a id="arrange-pickup-link" class="button icon-button" href="/services"><span>⌂</span>Arrange pickup</a>
             <button id="chat-seller-button" class="button icon-button hidden" type="button"><span>💬</span>Chat with seller</button>
-            <a id="share-item-btn" class="ghost-button icon-button" type="button"><span>↗</span>Share</button>
+            <button id="share-item-btn" class="ghost-button icon-button" type="button"><span>↗</span>Share</button>
             <a id="seller-link" class="ghost-button icon-button" href="#"><span>→</span>Seller page</a>
           </div>
         </div>
@@ -60,6 +64,11 @@
             <h2 id="condition-label">Good</h2>
             <p>Student listings stay transparent on wear, location, and collection flow.</p>
           </div>
+          <div class="detail-note-card">
+            <p class="eyebrow">Location</p>
+            <h2 id="item-location-text">Location shared in chat</h2>
+            <a id="item-map-link" class="ghost-link" href="#" target="_blank" rel="noreferrer">Open in Maps</a>
+          </div>
         </article>
       </section>
 
@@ -75,6 +84,16 @@
     </main>
 
     <div id="toast" class="toast"></div>
+    <div id="item-lightbox" class="lightbox hidden" aria-hidden="true">
+      <button id="item-lightbox-backdrop" class="lightbox-backdrop" type="button" aria-label="Close gallery"></button>
+      <div class="lightbox-dialog">
+        <button id="item-lightbox-close" class="lightbox-close" type="button" aria-label="Close">×</button>
+        <button id="item-lightbox-prev" class="lightbox-nav lightbox-nav-prev" type="button" aria-label="Previous image">‹</button>
+        <img id="item-lightbox-image" class="lightbox-image" alt="Listing image preview" />
+        <button id="item-lightbox-next" class="lightbox-nav lightbox-nav-next" type="button" aria-label="Next image">›</button>
+        <p id="item-lightbox-caption" class="lightbox-caption"></p>
+      </div>
+    </div>
     <script src="/app-shell.js"></script>
     <script src="/item.js"></script>
   </body>

@@ -409,31 +409,31 @@ const GreenLoop = (() => {
     drawer.innerHTML = `
       <div class="global-admin-drawer-head">
         <div>
-          <h2>Admin 管理</h2>
-          <p class="global-admin-drawer-copy">全站都能从这里弹出管理入口，不用回忆后台藏在哪。</p>
+          <h2>Admin Console</h2>
+          <p class="global-admin-drawer-copy">Open the full admin navigation from anywhere in the product.</p>
         </div>
         <button id="global-admin-drawer-close" class="ghost-button" type="button">Close</button>
       </div>
       <div class="global-admin-drawer-group">
-        <h3>运营控制台</h3>
-        <a class="global-admin-drawer-link" href="/admin"><strong>Admin overview</strong><span>总览、统计、用户、工单、审核</span></a>
-        <a class="global-admin-drawer-link" href="/admin#admin-users"><strong>Users</strong><span>增删改查用户账号</span></a>
-        <a class="global-admin-drawer-link" href="/admin#admin-verifications"><strong>Verification</strong><span>批准 / 拒绝学生验证</span></a>
-        <a class="global-admin-drawer-link" href="/admin#admin-ops"><strong>Ops requests</strong><span>审批预约、配送、服务、捐赠</span></a>
-        <a class="global-admin-drawer-link" href="/admin#admin-support"><strong>Support inbox</strong><span>处理帮助、信任、安全问题</span></a>
-        <a class="global-admin-drawer-link" href="/admin#admin-items"><strong>Listings</strong><span>改、删、修正商品信息</span></a>
-        <a class="global-admin-drawer-link" href="/admin#admin-opportunities"><strong>Opportunities</strong><span>岗位发布、修改、删除</span></a>
-        <a class="global-admin-drawer-link" href="/admin#admin-applications"><strong>Applications</strong><span>批准 / 拒绝 / 更新申请状态</span></a>
+        <h3>Operations</h3>
+        <a class="global-admin-drawer-link" href="/admin"><strong>Admin overview</strong><span>Totals, queues, users, support, and verification</span></a>
+        <a class="global-admin-drawer-link" href="/admin#admin-users"><strong>Users</strong><span>Create, edit, and remove accounts</span></a>
+        <a class="global-admin-drawer-link" href="/admin#admin-verifications"><strong>Verification</strong><span>Approve or reject student verification</span></a>
+        <a class="global-admin-drawer-link" href="/admin#admin-ops"><strong>Ops requests</strong><span>Handle pickup, delivery, service, and donation workflows</span></a>
+        <a class="global-admin-drawer-link" href="/admin#admin-support"><strong>Support inbox</strong><span>Work through help, trust, and safety issues</span></a>
+        <a class="global-admin-drawer-link" href="/admin#admin-items"><strong>Listings</strong><span>Edit, remove, and correct marketplace items</span></a>
+        <a class="global-admin-drawer-link" href="/admin#admin-opportunities"><strong>Opportunities</strong><span>Create, update, and retire job posts</span></a>
+        <a class="global-admin-drawer-link" href="/admin#admin-applications"><strong>Applications</strong><span>Review, approve, reject, and update applications</span></a>
       </div>
       <div class="global-admin-drawer-group">
-        <h3>业务页面</h3>
-        <a class="global-admin-drawer-link" href="/dashboard"><strong>Dashboard</strong><span>管理员账号的业务侧视角</span></a>
-        <a class="global-admin-drawer-link" href="/marketplace"><strong>Marketplace</strong><span>看前台展示与商品卡片</span></a>
-        <a class="global-admin-drawer-link" href="/sell"><strong>Sell</strong><span>检查发布链路</span></a>
-        <a class="global-admin-drawer-link" href="/services"><strong>Services</strong><span>检查服务申请页</span></a>
-        <a class="global-admin-drawer-link" href="/opportunities"><strong>Jobs</strong><span>检查岗位页与投递体验</span></a>
-        <a class="global-admin-drawer-link" href="/chat"><strong>Chat</strong><span>检查站内沟通页</span></a>
-        <a class="global-admin-drawer-link" href="/community"><strong>Community</strong><span>检查社区 feed</span></a>
+        <h3>Live Product</h3>
+        <a class="global-admin-drawer-link" href="/dashboard"><strong>Dashboard</strong><span>Business-side view for an admin account</span></a>
+        <a class="global-admin-drawer-link" href="/marketplace"><strong>Marketplace</strong><span>Check buyer-facing cards and detail pages</span></a>
+        <a class="global-admin-drawer-link" href="/sell"><strong>Sell</strong><span>Check the listing creation flow</span></a>
+        <a class="global-admin-drawer-link" href="/services"><strong>Services</strong><span>Check the service request experience</span></a>
+        <a class="global-admin-drawer-link" href="/opportunities"><strong>Jobs</strong><span>Check the jobs page and application flow</span></a>
+        <a class="global-admin-drawer-link" href="/chat"><strong>Chat</strong><span>Check live buyer-seller conversations</span></a>
+        <a class="global-admin-drawer-link" href="/community"><strong>Community</strong><span>Check the live community feed</span></a>
       </div>
     `;
 
