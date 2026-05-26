@@ -303,7 +303,7 @@
     }
 
     // ── Seek jobs ──
-    function renderJobs(jobs) {
+    function renderJobs(jobs, total = null) {
       const grid = $('#seek-jobs');
       const count = $('#results-count');
       const seekCount = $('#seek-count');
@@ -312,13 +312,14 @@
         if (count) count.textContent = '0 jobs';
         return;
       }
-      if (seekCount) seekCount.textContent = jobs.length;
-      if (count) count.textContent = jobs.length + ' jobs';
+      const totalCount = typeof total === 'number' ? total : jobs.length;
+      if (seekCount) seekCount.textContent = totalCount;
+      if (count) count.textContent = totalCount + ' jobs';
 
       const wtMap = { full_time: ['ft','Full time'], part_time: ['pt','Part time'], contract: ['ct','Contract'], casual: ['cs','Casual'] };
       grid.innerHTML = jobs.map(j => {
         const [cls, lbl] = wtMap[j.workType] || ['ft','Full time'];
-        const date = j.listedAt ? new Date(j.listedAt).toLocaleDateString('en-NZ',{day:'numeric',month:'short'}) : '';
+        const date = j.listedAt ? new Date(j.listedAt).toLocaleDateString('en-NZ',{day:'numeric',month:'short'}) : (j.listedLabel || '');
         return `<a class="job-card" href="${j.url||'#'}" target="_blank" rel="noopener">
           <div class="job-card-header">
             <h3>${j.title||'Untitled'}</h3>
@@ -347,7 +348,7 @@
         const resp = await fetch('/api/jobs?' + qs);
         if (!resp.ok) throw new Error('API error');
         const data = await resp.json();
-        renderJobs(data.jobs || []);
+        renderJobs(data.jobs || [], data.total);
       } catch(e) {
         grid.innerHTML = '<div class="empty-state"><h3>Failed to load</h3><p>Could not reach jobs API.</p></div>';
       }
