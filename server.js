@@ -261,6 +261,18 @@ const MATCH_STOPWORDS = new Set([
   "well", "one", "two", "three", "four", "five", "day", "days", "week", "weeks", "month", "months",
 ]);
 
+const JOB_CATEGORY_RULES = [
+  { key: "it", label: "IT", terms: ["software", "developer", "engineer", "data", "sql", "cloud", "cyber", "it", "devops", "product", "qa", "technical"] },
+  { key: "commerce", label: "Commerce", terms: ["finance", "account", "accounting", "bank", "procurement", "analyst", "commerce", "business", "audit", "tax"] },
+  { key: "sales", label: "Sales", terms: ["sales", "account manager", "bdm", "business development", "retail", "store", "customer", "service", "client"] },
+  { key: "legal", label: "Legal", terms: ["legal", "lawyer", "solicitor", "counsel", "compliance", "policy", "litigation"] },
+  { key: "marketing", label: "Marketing", terms: ["marketing", "brand", "seo", "content", "social media", "campaign", "communications"] },
+  { key: "operations", label: "Operations", terms: ["operations", "logistics", "supply chain", "warehouse", "coordinator", "scheduler", "planning"] },
+  { key: "health", label: "Healthcare", terms: ["health", "medical", "nurse", "clinical", "care", "pharmacy", "therapist"] },
+  { key: "education", label: "Education", terms: ["teacher", "lecturer", "education", "tutor", "trainer", "school"] },
+  { key: "trade", label: "Trades", terms: ["electrician", "plumber", "builder", "technician", "trade", "mechanic", "installer"] },
+];
+
 const tokenizeText = (value) =>
   String(value || "")
     .toLowerCase()
@@ -306,6 +318,16 @@ const buildResumeProfile = (resumeText) => {
   return { resumeTokens, resumeSet };
 };
 
+const classifyJobCategory = (job) => {
+  const haystack = `${job.title || ""} ${job.company || ""} ${job.description || ""}`.toLowerCase();
+  for (const rule of JOB_CATEGORY_RULES) {
+    if (rule.terms.some((term) => haystack.includes(term))) {
+      return { categoryKey: rule.key, categoryLabel: rule.label };
+    }
+  }
+  return { categoryKey: "general", categoryLabel: "General" };
+};
+
 const scoreJobMatch = (job, resumeProfile) => {
   const titleTokens = uniqueTokens(job.title);
   const companyTokens = uniqueTokens(job.company);
@@ -318,6 +340,7 @@ const scoreJobMatch = (job, resumeProfile) => {
   const matchedLocation = locationTokens.filter((token) => resumeProfile.resumeSet.has(token));
   const matchedDesc = descTokens.filter((token) => resumeProfile.resumeSet.has(token));
   const matchedAll = combined.filter((token) => resumeProfile.resumeSet.has(token));
+  const categoryInfo = classifyJobCategory(job);
 
   let rawScore = 0;
   rawScore += matchedTitle.length * 16;
@@ -328,14 +351,16 @@ const scoreJobMatch = (job, resumeProfile) => {
 
   const denominator = Math.max(titleTokens.length * 16 + Math.min(descTokens.length, 20) * 5 + locationTokens.length * 4, 40);
   const normalizedScore = Math.min(100, Math.max(0, Math.round((rawScore / denominator) * 100)));
+  const highlightedKeywords = Array.from(new Set([...matchedTitle, ...matchedLocation, ...matchedDesc])).slice(0, 8);
 
   return {
     score: normalizedScore,
-    matchedKeywords: Array.from(new Set([...matchedTitle, ...matchedLocation, ...matchedDesc])).slice(0, 10),
+    matchedKeywords: highlightedKeywords,
     matchReasons: [
-      matchedTitle.length ? `${matchedTitle.length} title keyword${matchedTitle.length > 1 ? "s" : ""}` : "",
-      matchedDesc.length ? `${matchedDesc.length} description keyword${matchedDesc.length > 1 ? "s" : ""}` : "",
-      matchedLocation.length ? `${matchedLocation.length} location keyword${matchedLocation.length > 1 ? "s" : ""}` : "",
+      matchedTitle.length ? `Title overlap: ${matchedTitle.slice(0, 3).join(", ")}` : "",
+      matchedDesc.length ? `Skill overlap: ${matchedDesc.slice(0, 4).join(", ")}` : "",
+      matchedLocation.length ? `Location overlap: ${matchedLocation.slice(0, 2).join(", ")}` : "",
+      categoryInfo.categoryLabel !== "General" ? `Category fit: ${categoryInfo.categoryLabel}` : "",
     ].filter(Boolean),
   };
 };
@@ -345,6 +370,7 @@ const filterJobs = (jobs, query) => {
   const q = cleanText(query.q, 120).toLowerCase();
   const location = cleanText(query.location, 120).toLowerCase().replace(/\s+/g, "-");
   const workType = cleanText(query.type, 40);
+  const category = cleanText(query.category, 60).toLowerCase();
   const limit = Math.min(Math.max(Number(query.limit || 100), 1), 500);
 
   if (q) {
@@ -361,6 +387,10 @@ const filterJobs = (jobs, query) => {
     result = result.filter((job) => String(job.workType || "") === workType);
   }
 
+  if (category) {
+    result = result.filter((job) => classifyJobCategory(job).categoryKey === category);
+  }
+
   return {
     jobs: result.slice(0, limit),
     total: result.length,
@@ -373,8 +403,11 @@ const sortJobsByResumeMatch = (jobs, resumeText) => {
   return jobs
     .map((job) => {
       const match = scoreJobMatch(job, resumeProfile);
+      const category = classifyJobCategory(job);
       return {
         ...job,
+        categoryKey: category.categoryKey,
+        categoryLabel: category.categoryLabel,
         matchScore: match.score,
         matchedKeywords: match.matchedKeywords,
         matchReasons: match.matchReasons,
@@ -384,6 +417,51 @@ const sortJobsByResumeMatch = (jobs, resumeText) => {
       if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
       return new Date(b.listedAt || 0) - new Date(a.listedAt || 0);
     });
+};
+
+const enrichJobs = (jobs) =>
+  jobs.map((job) => {
+    const category = classifyJobCategory(job);
+    return {
+      ...job,
+      categoryKey: category.categoryKey,
+      categoryLabel: category.categoryLabel,
+    };
+  });
+
+const getScheduledRefreshDelayMs = (timezone = "Pacific/Auckland") => {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const parts = Object.fromEntries(formatter.formatToParts(now).map((part) => [part.type, part.value]));
+  const currentMinutes = Number(parts.hour) * 60 + Number(parts.minute);
+  const schedule = [8 * 60, 20 * 60];
+  const nextMinutes = schedule.find((value) => value > currentMinutes);
+  const targetMinutes = nextMinutes ?? schedule[0] + 24 * 60;
+  const deltaMinutes = targetMinutes - currentMinutes - (Number(parts.second) > 0 ? 0 : 0);
+  const deltaSeconds = Math.max(30, deltaMinutes * 60 - Number(parts.second));
+  return deltaSeconds * 1000;
+};
+
+const scheduleJobsRefresh = () => {
+  const delayMs = getScheduledRefreshDelayMs();
+  setTimeout(() => {
+    try {
+      triggerJobsRefresh();
+    } catch (error) {
+      console.error("Scheduled jobs refresh failed to start:", error.message);
+    } finally {
+      scheduleJobsRefresh();
+    }
+  }, delayMs);
 };
 
 const triggerJobsRefresh = () => {
@@ -2940,7 +3018,7 @@ app.get("/api/jobs", (req, res) => {
   const jobs = parseJobsFile();
   const filtered = filterJobs(jobs, req.query || {});
   res.json({
-    jobs: filtered.jobs,
+    jobs: enrichJobs(filtered.jobs),
     total: filtered.total,
     source: "greenloop-bound-cache",
   });
@@ -2981,19 +3059,25 @@ app.get("/api/stats", (_req, res) => {
   const workTypes = {};
   const locations = {};
   const companies = {};
+  const categories = {};
 
   for (const job of jobs) {
     const type = job.workType || "unknown";
     const location = job.location || "unknown";
     const company = job.company || "unknown";
+    const category = classifyJobCategory(job).categoryLabel;
     workTypes[type] = (workTypes[type] || 0) + 1;
     locations[location] = (locations[location] || 0) + 1;
     companies[company] = (companies[company] || 0) + 1;
+    categories[category] = (categories[category] || 0) + 1;
   }
 
   res.json({
     total: jobs.length,
     work_types: workTypes,
+    categories: Object.entries(categories)
+      .sort((a, b) => b[1] - a[1])
+      .map(([label, count]) => ({ label, count })),
     top_locations: Object.entries(locations)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
@@ -3022,6 +3106,7 @@ app.use((err, _req, res, _next) => {
 
 ensureSchema()
   .then(() => {
+    scheduleJobsRefresh();
     app.listen(PORT, () => {
       console.log(`GreenLoop running on http://0.0.0.0:${PORT}`);
     });

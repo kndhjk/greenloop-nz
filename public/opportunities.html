@@ -99,6 +99,7 @@
     .meta-tag.pt { background: #f3e5f5; color: #7b1fa2; }
     .meta-tag.cs { background: #fff8e1; color: #f57f17; }
     .meta-tag.fea { background: #fff3e0; color: #e4393c; }
+    .meta-tag.cat { background: #eef2ff; color: #3347b0; }
     .job-card-desc { font-size: 12px; color: #888; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .job-card-footer { display: flex; justify-content: space-between; align-items: center; }
     .job-card-date { font-size: 11px; color: #bbb; font-weight: 600; }
@@ -335,6 +336,18 @@
           <option value="Hamilton">Hamilton</option>
           <option value="Christchurch">Christchurch</option>
         </select>
+        <select id="search-category">
+          <option value="">All categories</option>
+          <option value="it">IT</option>
+          <option value="commerce">Commerce</option>
+          <option value="sales">Sales</option>
+          <option value="legal">Legal</option>
+          <option value="marketing">Marketing</option>
+          <option value="operations">Operations</option>
+          <option value="health">Healthcare</option>
+          <option value="education">Education</option>
+          <option value="trade">Trades</option>
+        </select>
         <select id="search-type">
           <option value="">All types</option>
           <option value="full_time">Full time</option>
@@ -414,9 +427,11 @@
       const p = {};
       const k = $('#search-keyword').value.trim();
       const l = $('#search-location').value;
+      const c = $('#search-category').value;
       const t = $('#search-type').value;
       if (k) p.q = k;
       if (l) p.location = l;
+      if (c) p.category = c;
       if (t) p.type = t;
       return p;
     }
@@ -435,7 +450,8 @@
       }
       const form = new FormData();
       form.append('file', file);
-      const response = await fetch('/api/uploads', { method: 'POST', body: form });
+      const headers = window.GreenLoop?.state?.token ? { Authorization: `Bearer ${window.GreenLoop.state.token}` } : {};
+      const response = await fetch('/api/uploads', { method: 'POST', headers, body: form });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Resume upload failed.');
       jobsState.cvUrl = data.url || '';
@@ -465,6 +481,7 @@
         const [cls, lbl] = wtMap[j.workType] || ['ft','Full time'];
         const date = j.listedAt ? new Date(j.listedAt).toLocaleDateString('en-NZ',{day:'numeric',month:'short'}) : (j.listedLabel || '');
         const reasons = Array.isArray(j.matchReasons) ? j.matchReasons.filter(Boolean).slice(0, 3) : [];
+        const matchedKeywords = Array.isArray(j.matchedKeywords) ? j.matchedKeywords.slice(0, 5) : [];
         return `<a class="job-card" href="${j.url||'#'}" target="_blank" rel="noopener">
           <div class="job-card-header">
             <h3>${j.title||'Untitled'}</h3>
@@ -476,10 +493,12 @@
           <div class="job-card-company">${j.company||'Unknown'}</div>
           <div class="job-card-meta">
             <span class="meta-tag loc">📍 ${j.location||'NZ'}</span>
+            ${j.categoryLabel ? `<span class="meta-tag cat">${j.categoryLabel}</span>` : ''}
             <span class="meta-tag ${cls}">${lbl}</span>
             ${j.featured ? '<span class="meta-tag fea">★ Featured</span>' : ''}
           </div>
           ${matchedMode && reasons.length ? `<div class="job-card-reasons">${reasons.map(reason => `<span class="job-card-reason">${reason}</span>`).join('')}</div>` : ''}
+          ${matchedMode && matchedKeywords.length ? `<p class="job-card-desc"><strong>Matched on:</strong> ${matchedKeywords.join(', ')}</p>` : ''}
           ${j.description ? `<p class="job-card-desc">${j.description}</p>` : ''}
           <div class="job-card-footer">
             <span class="job-card-date">${date}</span>
@@ -564,6 +583,7 @@
       const button = event.currentTarget;
       $('#search-keyword').value = '';
       $('#search-location').value = '';
+      $('#search-category').value = '';
       $('#search-type').value = '';
       button.disabled = true;
       button.textContent = 'Refreshing...';
