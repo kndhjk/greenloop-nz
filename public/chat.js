@@ -127,6 +127,69 @@ const updateHeroStats = () => {
 
 const detectMobileView = () => window.innerWidth < 780;
 const isMobileComposerFocused = () => document.activeElement?.id === "chat-input-mobile";
+const getActiveMessageStream = () =>
+  chatState.isMobileView
+    ? document.getElementById("chat-messages-mobile") || document.getElementById("chat-messages")
+    : document.getElementById("chat-messages") || document.getElementById("chat-messages-mobile");
+
+const updateScrollFlags = (element) => {
+  if (!element) return;
+  const distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
+  chatState.didUserScrollUp = distanceFromBottom > 120;
+  chatState.isUserScrolling = true;
+  clearTimeout(chatState._scrollEndTimer);
+  chatState._scrollEndTimer = setTimeout(() => {
+    chatState.isUserScrolling = false;
+  }, 400);
+};
+
+const bindMessageStreamInteractions = (element) => {
+  if (!element || element.dataset.boundInteractions === "1") return;
+  element.dataset.boundInteractions = "1";
+  const onScroll = () => {
+    updateScrollFlags(element);
+    if (element.scrollTop < 80 && chatState.hasMoreMessages && !chatState.isLoadingMore) {
+      loadOlderMessages();
+    }
+  };
+  element.addEventListener("scroll", onScroll, { passive: true });
+  element.addEventListener("touchmove", () => updateScrollFlags(element), { passive: true });
+};
+
+const bindZoomableImages = (root) => {
+  if (!root || typeof GreenLoop?.openImageLightbox !== "function") return;
+  root.querySelectorAll(".chat-image").forEach((image) => {
+    if (image.dataset.zoomBound === "1") return;
+    image.dataset.zoomBound = "1";
+    image.tabIndex = 0;
+    image.setAttribute("role", "button");
+    const open = () => GreenLoop.openImageLightbox(image.currentSrc || image.src, image.alt || "Chat image");
+    image.addEventListener("click", open);
+    image.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        open();
+      }
+    });
+  });
+};
+
+const bindContextImageZoom = () => {
+  const image = document.getElementById("chat-context-image");
+  if (!image || !image.getAttribute("src") || typeof GreenLoop?.openImageLightbox !== "function") return;
+  if (image.dataset.zoomBound === "1") return;
+  image.dataset.zoomBound = "1";
+  image.tabIndex = 0;
+  image.setAttribute("role", "button");
+  const open = () => GreenLoop.openImageLightbox(image.currentSrc || image.src, image.alt || "Listing image");
+  image.addEventListener("click", open);
+  image.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      open();
+    }
+  });
+};
 
 // ── Keyboard tracking for mobile ──
 let lastInnerHeight = window.innerHeight;
@@ -138,16 +201,13 @@ const onMobileKeyboardShow = () => {
   const statsBar = document.querySelector(".chat-stats-bar");
   if (strip) strip.classList.add("keyboard-hidden");
   if (statsBar) statsBar.classList.add("keyboard-hidden");
-  // Prevent body scroll
+  document.body.classList.add("chat-mobile-keyboard-open");
   document.body.style.overflow = "hidden";
-  document.body.style.position = "fixed";
-  document.body.style.width = "100%";
-  // Scroll chat stage to bottom after keyboard opens
   setTimeout(() => {
-    const msgEl = document.getElementById("chat-messages-mobile") || document.getElementById("chat-messages");
+    const msgEl = getActiveMessageStream();
     if (msgEl) {
       msgEl.scrollTop = msgEl.scrollHeight;
-      msgEl.style.overflow = "scroll";
+      msgEl.style.overflowY = "auto";
     }
   }, 150);
 };
@@ -159,10 +219,8 @@ const onMobileKeyboardHide = () => {
   const statsBar = document.querySelector(".chat-stats-bar");
   if (strip) strip.classList.remove("keyboard-hidden");
   if (statsBar) statsBar.classList.remove("keyboard-hidden");
-  // Restore body scroll
+  document.body.classList.remove("chat-mobile-keyboard-open");
   document.body.style.overflow = "";
-  document.body.style.position = "";
-  document.body.style.width = "";
 };
 
 const setupMobileKeyboardListeners = () => {
@@ -371,15 +429,10 @@ const openThreadMobile = (threadId) => {
     }
   });
 
-  // Scroll to load more history
   const msgEl = document.getElementById("chat-messages-mobile");
-  if (msgEl) {
-    msgEl.addEventListener("scroll", () => {
-      if (msgEl.scrollTop < 80 && chatState.hasMoreMessages && !chatState.isLoadingMore) {
-        loadOlderMessages();
-      }
-    });
-  }
+  bindMessageStreamInteractions(msgEl);
+  bindZoomableImages(msgEl);
+  bindContextImageZoom();
 };
 
 const selectConversation = async (threadId, options = {}) => {
@@ -486,14 +539,18 @@ const renderMessagesMobile = (messages, currentUserId) => {
 const updateMobileMessages = () => {
   const target = document.getElementById("chat-messages-mobile");
   if (!target) return;
+  const previousBottomOffset = target.scrollHeight - target.scrollTop;
+  const shouldStickToBottom = previousBottomOffset - target.clientHeight < 120 || !chatState.didUserScrollUp;
   const messages = window._chatMessages || [];
   const currentUserId = GreenLoop.state.user?.id;
   target.innerHTML = renderMessagesMobile(messages, currentUserId);
-  // Smart scroll: only snap to bottom if near bottom or user hasn't scrolled up
-  const nearBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 120;
-  if (nearBottom || !chatState.didUserScrollUp) {
+  bindMessageStreamInteractions(target);
+  bindZoomableImages(target);
+  if (shouldStickToBottom) {
     target.scrollTop = target.scrollHeight;
+    return;
   }
+  target.scrollTop = Math.max(target.scrollHeight - previousBottomOffset, 0);
 };
 
 const updatePendingPreview = () => {
@@ -627,6 +684,8 @@ const renderThreads = () => {
 const renderMessages = (messages, currentUserId, append = false, prepend = false) => {
   const target = document.getElementById("chat-messages");
   if (!target) return;
+  const previousBottomOffset = target.scrollHeight - target.scrollTop;
+  const shouldStickToBottom = append || previousBottomOffset - target.clientHeight < 120 || !chatState.didUserScrollUp;
 
   if (!messages.length && !append && !prepend) {
     target.innerHTML = `
@@ -676,7 +735,13 @@ const renderMessages = (messages, currentUserId, append = false, prepend = false
   } else {
     target.innerHTML = html;
   }
-  target.scrollTop = target.scrollHeight;
+  bindMessageStreamInteractions(target);
+  bindZoomableImages(target);
+  if (shouldStickToBottom) {
+    target.scrollTop = target.scrollHeight;
+    return;
+  }
+  target.scrollTop = Math.max(target.scrollHeight - previousBottomOffset, 0);
 };
 
 const syncHeader = () => {
@@ -741,8 +806,12 @@ const syncHeader = () => {
   if (selected.itemImage && contextImage) {
     contextImage.src = selected.itemImage;
     contextImage.alt = selected.itemTitle || "Listing";
+  } else if (contextImage) {
+    contextImage.removeAttribute("src");
+    contextImage.alt = "Listing";
   }
   if (contextCard) contextCard.classList.remove("hidden");
+  bindContextImageZoom();
 };
 
 const syncUnreadIndicators = () => {
@@ -790,9 +859,9 @@ const ensureConversationFromItem = async () => {
 const loadOlderMessages = async () => {
   if (!chatState.selectedId || !chatState.oldestMessageId || chatState.isLoadingMore) return;
   chatState.isLoadingMore = true;
-  
-  // Show loading indicator
-  const target = document.getElementById("chat-messages") || document.getElementById("chat-messages-mobile");
+  const target = getActiveMessageStream();
+  const previousHeight = target ? target.scrollHeight : 0;
+  const previousTop = target ? target.scrollTop : 0;
   if (target) {
     const loader = document.createElement("div");
     loader.id = "chat-load-more-loader";
@@ -812,13 +881,11 @@ const loadOlderMessages = async () => {
       const currentMessages = window._chatMessages || [];
       window._chatMessages = [...messages, ...currentMessages];
       const currentUserId = GreenLoop.state.user.id;
-      
-      const target = document.getElementById("chat-messages") || document.getElementById("chat-messages-mobile");
+
       if (target) {
         const loader = document.getElementById("chat-load-more-loader");
         if (loader) loader.remove();
-        
-        // Prepend older messages at top
+
         const html = messages.map((message) => {
           const mine = Number(message.senderId) === Number(currentUserId);
           const sender = {
@@ -844,9 +911,9 @@ const loadOlderMessages = async () => {
         const firstMsg = target.querySelector(".chat-message-row");
         if (firstMsg) {
           target.insertBefore(document.createRange().createContextualFragment(html), firstMsg);
+          bindZoomableImages(target);
         }
-        // Restore scroll position
-        target.scrollTop = 80;
+        target.scrollTop = Math.max(target.scrollHeight - previousHeight + previousTop, 0);
       }
     }
   } catch (err) {
@@ -897,18 +964,6 @@ const loadMessages = async (append = false) => {
   if (chatState.isMobileView && Number(chatState.renderedMobileThreadId) === Number(chatState.selectedId)) {
     updateMobileMessages();
   }
-  
-  // Setup scroll for history on desktop
-  if (!chatState.isMobileView) {
-    const target = document.getElementById("chat-messages");
-    if (target) {
-      target.addEventListener("scroll", () => {
-        if (target.scrollTop < 80 && chatState.hasMoreMessages && !chatState.isLoadingMore) {
-          loadOlderMessages();
-        }
-      });
-    }
-  }
 };
 
 const uploadImageIfNeeded = async () => {
@@ -957,23 +1012,9 @@ const boot = async () => {
   startPolling();
 
   // ── Track user scroll position (don't interrupt reading) ──
-  const setupMessageScrollTracking = () => {
-    const desktopEl = document.getElementById("chat-messages");
-    const mobileEl = document.getElementById("chat-messages-mobile");
-    const onScroll = (el) => {
-      if (!el) return;
-      const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
-      chatState.didUserScrollUp = dist > 120;
-      chatState.isUserScrolling = true;
-      clearTimeout(chatState._scrollEndTimer);
-      chatState._scrollEndTimer = setTimeout(() => { chatState.isUserScrolling = false; }, 400);
-    };
-    desktopEl?.addEventListener("scroll", () => onScroll(desktopEl), { passive: true });
-    mobileEl?.addEventListener("scroll", () => onScroll(mobileEl), { passive: true });
-    desktopEl?.addEventListener("touchmove", () => onScroll(desktopEl), { passive: true });
-    mobileEl?.addEventListener("touchmove", () => onScroll(mobileEl), { passive: true });
-  };
-  setupMessageScrollTracking();
+  bindMessageStreamInteractions(document.getElementById("chat-messages"));
+  bindZoomableImages(document.getElementById("chat-messages"));
+  bindContextImageZoom();
   setupMobileKeyboardListeners();
 
   if (chatState.isMobileView) {

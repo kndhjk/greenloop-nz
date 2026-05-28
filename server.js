@@ -2,7 +2,7 @@ require("dotenv").config();
 
 const fs = require("fs");
 const path = require("path");
-const { spawn } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
@@ -10,7 +10,6 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const mysql = require("mysql2/promise");
 const nodemailer = require("nodemailer");
-const pdfParse = require("pdf-parse");
 
 const app = express();
 const PORT = Number(process.env.PORT || 5001);
@@ -20,61 +19,27 @@ const ALLOWED_STUDENT_DOMAINS = String(process.env.ALLOWED_STUDENT_DOMAINS || "a
   .map((v) => v.trim().toLowerCase())
   .filter(Boolean);
 const REGISTRATION_CODE_TTL_MINUTES = Number(process.env.REGISTRATION_CODE_TTL_MINUTES || 10);
-const ADMIN_BOOTSTRAP_EMAIL = String(process.env.ADMIN_BOOTSTRAP_EMAIL || "").trim().toLowerCase();
+const ADMIN_BOOTSTRAP_EMAIL = String(process.env.ADMIN_BOOTSTRAP_EMAIL || "admin@auckland.ac.nz").trim().toLowerCase();
 const ADMIN_EMAILS = Array.from(new Set(`${process.env.ADMIN_EMAILS || ""},${ADMIN_BOOTSTRAP_EMAIL}`
   .split(",")
   .map((v) => v.trim().toLowerCase())
   .filter(Boolean)));
-const ADMIN_BOOTSTRAP_PASSWORD = String(process.env.ADMIN_BOOTSTRAP_PASSWORD || "");
+const ADMIN_BOOTSTRAP_PASSWORD = String(process.env.ADMIN_BOOTSTRAP_PASSWORD || "GreenLoopAdmin2026!");
 const ADMIN_BOOTSTRAP_NAME = String(process.env.ADMIN_BOOTSTRAP_NAME || "GreenLoop Admin").trim();
-const EXPOSE_RESET_LINKS = String(process.env.EXPOSE_RESET_LINKS || "0") === "1";
+const EXPOSE_RESET_LINKS = String(process.env.EXPOSE_RESET_LINKS || "1") === "1";
 const PUBLIC_BASE_URL = String(process.env.PUBLIC_BASE_URL || `http://127.0.0.1:${PORT}`).replace(/\/$/, "");
-const normalizeOrigin = (value) => {
-  try {
-    return new URL(String(value || "").trim()).origin;
-  } catch {
-    return null;
-  }
-};
-const PUBLIC_ORIGIN = normalizeOrigin(PUBLIC_BASE_URL);
-const LOCAL_ORIGINS = [`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`];
-const CORS_ALLOWED_ORIGINS = Array.from(
-  new Set(
-    [PUBLIC_ORIGIN, ...LOCAL_ORIGINS,
-      ...String(process.env.CORS_ALLOWED_ORIGINS || "")
-        .split(",")
-        .map((v) => normalizeOrigin(v))
-        .filter(Boolean),
-    ].filter(Boolean)
-  )
-);
-const shouldExposeQaResetLink = EXPOSE_RESET_LINKS && /^(http:\/\/localhost|http:\/\/127\.0\.0\.1)(:\d+)?$/i.test(PUBLIC_BASE_URL);
 const SMTP_HOST = process.env.SMTP_HOST || "mail.mixport.co.nz";
 const SMTP_PORT = Number(process.env.SMTP_PORT || 465);
 const SMTP_SECURE = String(process.env.SMTP_SECURE || "1") === "1";
 const SMTP_USER = process.env.SMTP_USER || "noreply@mixport.co.nz";
 const SMTP_PASS = process.env.SMTP_PASS || "";
 const SMTP_FROM_NAME = process.env.SMTP_FROM_NAME || "GreenLoop NZ";
-const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "mzha585@aucklanduni.ac.nz";
 const JOB_CACHE_FILE = process.env.JOB_CACHE_FILE || "/home/destiny/will-have-job/jobs.json";
 const JOB_SCRAPER_DIR = process.env.JOB_SCRAPER_DIR || "/home/destiny/will-have-job";
 const JOB_SCRAPER_ENTRY = process.env.JOB_SCRAPER_ENTRY || "app.py";
 const JOB_SCRAPER_LOCK = path.join(JOB_SCRAPER_DIR, "scrape.lock");
 const JOB_SCRAPER_LOCK_MAX_AGE_MS = Number(process.env.JOB_SCRAPER_LOCK_MAX_AGE_MS || 30 * 60 * 1000);
 const CHAT_ONLINE_WINDOW_SECONDS = Number(process.env.CHAT_ONLINE_WINDOW_SECONDS || 60);
-const ALLOWED_UPLOAD_MIME_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-  "application/pdf",
-  "application/x-pdf",
-  "application/acrobat",
-  "applications/vnd.pdf",
-  "text/pdf",
-  "application/octet-stream",
-]);
-const ALLOWED_UPLOAD_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".pdf"]);
 
 const uploadsDir = path.join(__dirname, "uploads");
 fs.mkdirSync(uploadsDir, { recursive: true });
@@ -98,49 +63,10 @@ const upload = multer({
       cb(null, safe);
     },
   }),
-  fileFilter: (_req, file, cb) => {
-    const ext = path.extname(file.originalname || "").toLowerCase();
-    const mime = String(file.mimetype || "").toLowerCase();
-    const isPdf = ext === ".pdf";
-    const mimeAllowed = ALLOWED_UPLOAD_MIME_TYPES.has(mime) || (isPdf && !mime);
-    if (!mimeAllowed || !ALLOWED_UPLOAD_EXTENSIONS.has(ext)) {
-      return cb(new Error("Only JPG, PNG, GIF, WebP, or PDF files are allowed."));
-    }
-    cb(null, true);
-  },
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 80 * 1024 * 1024 },
 });
 
-app.disable("x-powered-by");
-app.use(
-  cors({
-    origin(origin, cb) {
-      if (!origin || !CORS_ALLOWED_ORIGINS.length || CORS_ALLOWED_ORIGINS.includes(origin)) {
-        return cb(null, true);
-      }
-      return cb(null, false);
-    },
-    optionsSuccessStatus: 204,
-  })
-);
-app.use((req, res, next) => {
-  res.vary("Origin");
-  res.setHeader("X-Frame-Options", "SAMEORIGIN");
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-  res.setHeader("Cross-Origin-Resource-Policy", "same-site");
-  res.setHeader(
-    "Content-Security-Policy",
-    "default-src 'self' https: data: blob:; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' https:; connect-src 'self' https:; font-src 'self' https: data:; frame-ancestors 'self'; base-uri 'self'; form-action 'self';"
-  );
-  const noIndexPrefixes = ["/api/", "/admin", "/dashboard", "/chat", "/login", "/register", "/forgot-password", "/reset-password"];
-  if (noIndexPrefixes.some((prefix) => req.path === prefix || req.path.startsWith(prefix))) {
-    res.setHeader("X-Robots-Tag", "noindex, nofollow");
-  }
-  next();
-});
+app.use(cors());
 app.use(express.json({ limit: "12mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(uploadsDir));
@@ -164,22 +90,6 @@ const mailer =
 
 const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-const rateLimitBuckets = new Map();
-const createRateLimiter = ({ windowMs, max, message, keyFn }) => (req, res, next) => {
-  const bucketKey = keyFn ? keyFn(req) : `${req.ip}:${req.path}`;
-  const now = Date.now();
-  const current = rateLimitBuckets.get(bucketKey);
-  if (!current || now > current.resetAt) {
-    rateLimitBuckets.set(bucketKey, { count: 1, resetAt: now + windowMs });
-    return next();
-  }
-  if (current.count >= max) {
-    return res.status(429).json({ error: message || "Too many requests. Please try again later." });
-  }
-  current.count += 1;
-  next();
-};
-
 const normalizeList = (value) => {
   if (!value) return [];
   if (Array.isArray(value)) return value;
@@ -195,6 +105,29 @@ const normalizeList = (value) => {
     }
   }
   return [];
+};
+
+const normalizeMediaUrls = (value) =>
+  normalizeList(value)
+    .map((entry) => String(entry || "").trim())
+    .filter(Boolean)
+    .slice(0, 15);
+
+const validateItemMedia = ({ images, videos }) => {
+  const normalizedImages = normalizeMediaUrls(images);
+  const normalizedVideos = normalizeMediaUrls(videos).slice(0, 1);
+
+  if (normalizedVideos.length > 1) {
+    throw new Error("Only one video can be attached to a listing.");
+  }
+  if (normalizedVideos.length > 0 && normalizedImages.length > 3) {
+    throw new Error("Listings with a video can include up to 3 images.");
+  }
+  if (normalizedVideos.length === 0 && normalizedImages.length > 15) {
+    throw new Error("Listings can include up to 15 images.");
+  }
+
+  return { images: normalizedImages, videos: normalizedVideos };
 };
 
 const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
@@ -213,7 +146,6 @@ const createToken = () => `${Date.now().toString(36)}${Math.random().toString(36
 const createVerificationCode = () => String(Math.floor(100000 + Math.random() * 900000));
 const isAdminEmail = (value) => ADMIN_EMAILS.includes(String(value || "").trim().toLowerCase());
 const buildAbsoluteUrl = (targetPath) => `${PUBLIC_BASE_URL}${targetPath.startsWith("/") ? targetPath : `/${targetPath}`}`;
-const sendPublicPage = (res, file, status = 200) => res.status(status).sendFile(path.join(__dirname, "public", file));
 const formatJoinDate = (value) =>
   new Date(value).toLocaleDateString("en-NZ", {
     year: "numeric",
@@ -260,447 +192,12 @@ const parseJobsFile = () => {
   }
 };
 
-const MATCH_STOPWORDS = new Set([
-  "the", "and", "for", "with", "that", "this", "from", "your", "you", "are", "our", "has", "have",
-  "will", "into", "about", "their", "them", "they", "but", "not", "all", "any", "can", "may", "per",
-  "job", "role", "work", "team", "new", "nz", "newzealand", "aotearoa", "experience", "skills",
-  "skill", "using", "used", "who", "what", "when", "where", "how", "able", "required", "preferred",
-  "including", "across", "within", "through", "need", "needs", "want", "wants", "good", "strong",
-  "well", "one", "two", "three", "four", "five", "day", "days", "week", "weeks", "month", "months",
-  "project", "projects", "university", "bachelor", "master", "resume", "curriculum", "vitae", "student",
-]);
-
-const JOB_CATEGORY_RULES = [
-  { key: "it", label: "IT", terms: ["software", "developer", "engineer", "data", "sql", "cloud", "cyber", "it", "devops", "product", "qa", "technical"] },
-  { key: "commerce", label: "Commerce", terms: ["finance", "account", "accounting", "bank", "procurement", "analyst", "commerce", "business", "audit", "tax"] },
-  { key: "sales", label: "Sales", terms: ["sales", "account manager", "bdm", "business development", "retail", "store", "customer", "service", "client"] },
-  { key: "legal", label: "Legal", terms: ["legal", "lawyer", "solicitor", "counsel", "compliance", "policy", "litigation"] },
-  { key: "marketing", label: "Marketing", terms: ["marketing", "brand", "seo", "content", "social media", "campaign", "communications"] },
-  { key: "operations", label: "Operations", terms: ["operations", "logistics", "supply chain", "warehouse", "coordinator", "scheduler", "planning"] },
-  { key: "health", label: "Healthcare", terms: ["health", "medical", "nurse", "clinical", "care", "pharmacy", "therapist"] },
-  { key: "education", label: "Education", terms: ["teacher", "lecturer", "education", "tutor", "trainer", "school"] },
-  { key: "trade", label: "Trades", terms: ["electrician", "plumber", "builder", "technician", "trade", "mechanic", "installer"] },
-];
-
-const MATCH_SIGNAL_RULES = [
-  {
-    key: "software-engineering",
-    label: "Software engineering",
-    bucket: "domains",
-    terms: ["software engineer", "software engineering", "full stack", "frontend", "backend", "web app", "api", "microservice"],
-  },
-  {
-    key: "data-analytics",
-    label: "Data analytics",
-    bucket: "domains",
-    terms: ["data analyst", "data analytics", "data science", "business intelligence", "power bi", "tableau", "reporting", "dashboard"],
-  },
-  {
-    key: "product-delivery",
-    label: "Product and delivery",
-    bucket: "domains",
-    terms: ["product manager", "product owner", "agile", "scrum", "roadmap", "stakeholder", "delivery"],
-  },
-  {
-    key: "cloud-devops",
-    label: "Cloud and DevOps",
-    bucket: "domains",
-    terms: ["aws", "azure", "gcp", "cloud", "docker", "kubernetes", "devops", "ci/cd", "terraform"],
-  },
-  {
-    key: "finance-accounting",
-    label: "Finance and accounting",
-    bucket: "domains",
-    terms: ["finance", "financial", "accounting", "accounts", "audit", "tax", "budget", "forecast", "payroll"],
-  },
-  {
-    key: "sales-customer",
-    label: "Sales and customer growth",
-    bucket: "domains",
-    terms: ["sales", "business development", "account manager", "customer success", "retail", "lead generation", "crm"],
-  },
-  {
-    key: "marketing-comms",
-    label: "Marketing and communications",
-    bucket: "domains",
-    terms: ["marketing", "communications", "seo", "campaign", "content", "brand", "social media"],
-  },
-  {
-    key: "legal-compliance",
-    label: "Legal and compliance",
-    bucket: "domains",
-    terms: ["legal", "law", "lawyer", "solicitor", "compliance", "regulatory", "policy", "contract"],
-  },
-  {
-    key: "operations-logistics",
-    label: "Operations and logistics",
-    bucket: "domains",
-    terms: ["operations", "logistics", "supply chain", "warehouse", "procurement", "planning", "coordinator"],
-  },
-  {
-    key: "education-training",
-    label: "Education and training",
-    bucket: "domains",
-    terms: ["teacher", "education", "tutor", "lecturer", "training", "curriculum"],
-  },
-  {
-    key: "healthcare",
-    label: "Healthcare",
-    bucket: "domains",
-    terms: ["nurse", "clinical", "healthcare", "patient", "medical", "care", "pharmacy"],
-  },
-  {
-    key: "information-technology",
-    label: "Information technology",
-    bucket: "education",
-    terms: ["information technology", "computer science", "software engineering", "ict", "computing", "informatics"],
-  },
-  {
-    key: "business-commerce",
-    label: "Business and commerce",
-    bucket: "education",
-    terms: ["commerce", "business", "management", "economics", "marketing", "international business"],
-  },
-  {
-    key: "finance-accounting-major",
-    label: "Finance or accounting major",
-    bucket: "education",
-    terms: ["finance major", "accounting major", "accounting", "finance", "economics", "banking"],
-  },
-  {
-    key: "law-major",
-    label: "Law background",
-    bucket: "education",
-    terms: ["llb", "law degree", "juris doctor", "legal studies", "law"],
-  },
-  {
-    key: "project-delivery",
-    label: "Project delivery",
-    bucket: "projects",
-    terms: ["built", "developed", "implemented", "delivered", "launched", "designed", "deployed", "created"],
-  },
-  {
-    key: "leadership-collaboration",
-    label: "Leadership and collaboration",
-    bucket: "projects",
-    terms: ["led", "managed", "coordinated", "collaborated", "stakeholder", "cross-functional", "presented"],
-  },
-  {
-    key: "research-analysis",
-    label: "Research and analysis",
-    bucket: "projects",
-    terms: ["researched", "analysed", "analyzed", "insights", "evaluation", "findings", "modelled", "modeled"],
-  },
-  {
-    key: "sql",
-    label: "SQL",
-    bucket: "skills",
-    terms: ["sql", "mysql", "postgresql", "sqlite", "database"],
-  },
-  {
-    key: "python",
-    label: "Python",
-    bucket: "skills",
-    terms: ["python", "pandas", "numpy", "scikit", "jupyter"],
-  },
-  {
-    key: "javascript",
-    label: "JavaScript",
-    bucket: "skills",
-    terms: ["javascript", "typescript", "node.js", "nodejs", "react", "vue", "frontend"],
-  },
-  {
-    key: "excel",
-    label: "Excel",
-    bucket: "skills",
-    terms: ["excel", "spreadsheet", "vlookup", "pivot table"],
-  },
-  {
-    key: "crm",
-    label: "CRM",
-    bucket: "skills",
-    terms: ["salesforce", "hubspot", "crm"],
-  },
-];
-
-const EXPERIENCE_LEVEL_RULES = [
-  { key: "intern", label: "Intern or entry-level", terms: ["intern", "internship", "graduate", "entry level", "junior"] },
-  { key: "mid", label: "Mid-level delivery", terms: ["coordinator", "specialist", "analyst", "consultant", "advisor"] },
-  { key: "senior", label: "Senior ownership", terms: ["senior", "lead", "manager", "principal", "head of", "director"] },
-];
-
-const tokenizeText = (value) =>
-  String(value || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9+#./ -]+/g, " ")
-    .split(/\s+/)
-    .map((token) => token.trim())
-    .filter((token) => token.length >= 2 && !MATCH_STOPWORDS.has(token));
-
-const uniqueTokens = (value) => Array.from(new Set(tokenizeText(value)));
-
-const uniqueLabels = (items) => Array.from(new Set(items.map((item) => item.label)));
-
-const detectSignals = (text, bucket = null) => {
-  const haystack = ` ${String(text || "").toLowerCase()} `;
-  return MATCH_SIGNAL_RULES.filter((rule) => (!bucket || rule.bucket === bucket) && rule.terms.some((term) => haystack.includes(` ${term.toLowerCase()} `) || haystack.includes(term.toLowerCase()))).map((rule) => ({
-    key: rule.key,
-    label: rule.label,
-    bucket: rule.bucket,
-  }));
-};
-
-const detectExperienceLevel = (text) => {
-  const haystack = String(text || "").toLowerCase();
-  for (const rule of EXPERIENCE_LEVEL_RULES) {
-    if (rule.terms.some((term) => haystack.includes(term))) {
-      return { key: rule.key, label: rule.label };
-    }
-  }
-  const yearMatch = haystack.match(/(\d+)\+?\s+years?/);
-  if (yearMatch) {
-    const years = Number(yearMatch[1]);
-    if (years >= 5) return { key: "senior", label: "Senior ownership" };
-    if (years >= 2) return { key: "mid", label: "Mid-level delivery" };
-  }
-  return { key: "general", label: "General experience" };
-};
-
-const differenceKeys = (sourceSet, targetSet) => Array.from(sourceSet).filter((key) => !targetSet.has(key));
-
-const buildResumeSuggestions = (resumeProfile, rankedJobs) => {
-  if (!rankedJobs.length) return [];
-  const topJobs = rankedJobs.slice(0, 5);
-  const wantedDomainLabels = Array.from(
-    new Set(
-      topJobs.flatMap((job) => (job.detailMatch?.jobDomains || []).map((item) => item.label))
-    )
-  );
-  const missingDomainLabels = Array.from(
-    new Set(
-      topJobs.flatMap((job) => (job.detailMatch?.missingDomains || []).map((item) => item.label))
-    )
-  );
-  const missingSkillLabels = Array.from(
-    new Set(
-      topJobs.flatMap((job) => (job.detailMatch?.missingSkills || []).map((item) => item.label))
-    )
-  );
-  const missingProjectLabels = Array.from(
-    new Set(
-      topJobs.flatMap((job) => (job.detailMatch?.missingProjects || []).map((item) => item.label))
-    )
-  );
-  const suggestions = [];
-  if (wantedDomainLabels.length) {
-    suggestions.push(`Target direction: ${wantedDomainLabels.slice(0, 3).join(", ")} roles are showing up most often.`);
-  }
-  if (missingDomainLabels.length) {
-    suggestions.push(`Add sharper domain wording for ${missingDomainLabels.slice(0, 3).join(", ")} if you have relevant exposure.`);
-  }
-  if (missingSkillLabels.length) {
-    suggestions.push(`Strengthen tool evidence with ${missingSkillLabels.slice(0, 4).join(", ")} in projects, bullet points, or certifications.`);
-  }
-  if (missingProjectLabels.length) {
-    suggestions.push(`Your resume would rank better with outcome-focused project bullets around ${missingProjectLabels.slice(0, 3).join(", ")}.`);
-  }
-  if (!resumeProfile.education.length) {
-    suggestions.push("Spell out your major, degree, and expected graduation date so employers can map your academic background faster.");
-  }
-  if (!resumeProfile.projects.length) {
-    suggestions.push("Add 2–3 project bullets with action verbs, scale, and measurable outcomes to improve project-fit scoring.");
-  }
-  return suggestions.slice(0, 5);
-};
-
-const resolveUploadPath = (uploadUrl) => {
-  const relative = String(uploadUrl || "").trim();
-  if (!relative.startsWith("/uploads/")) {
-    throw new Error("Resume must be uploaded to GreenLoop first.");
-  }
-  const filePath = path.normalize(path.join(__dirname, relative.replace(/^\/+/, "")));
-  if (!filePath.startsWith(uploadsDir + path.sep) && filePath !== uploadsDir) {
-    throw new Error("Invalid upload path.");
-  }
-  if (!fs.existsSync(filePath)) {
-    throw new Error("Uploaded resume file was not found.");
-  }
-  if (path.extname(filePath).toLowerCase() !== ".pdf") {
-    throw new Error("Only PDF resumes are supported for match analysis.");
-  }
-  return filePath;
-};
-
-const extractResumeText = async (uploadUrl) => {
-  const filePath = resolveUploadPath(uploadUrl);
-  const buffer = fs.readFileSync(filePath);
-  const parsed = await pdfParse(buffer);
-  const text = String(parsed.text || "").replace(/\s+/g, " ").trim();
-  if (!text) {
-    throw new Error("Could not read text from that PDF resume.");
-  }
-  return text.slice(0, 40000);
-};
-
-const buildResumeProfile = (resumeText) => {
-  const resumeTokens = uniqueTokens(resumeText);
-  const resumeSet = new Set(resumeTokens);
-  const domains = detectSignals(resumeText, "domains");
-  const education = detectSignals(resumeText, "education");
-  const projects = detectSignals(resumeText, "projects");
-  const skills = detectSignals(resumeText, "skills");
-  const experienceLevel = detectExperienceLevel(resumeText);
-  return {
-    resumeTokens,
-    resumeSet,
-    domains,
-    domainSet: new Set(domains.map((item) => item.key)),
-    education,
-    educationSet: new Set(education.map((item) => item.key)),
-    projects,
-    projectSet: new Set(projects.map((item) => item.key)),
-    skills,
-    skillSet: new Set(skills.map((item) => item.key)),
-    experienceLevel,
-  };
-};
-
-const classifyJobCategory = (job) => {
-  const haystack = `${job.title || ""} ${job.company || ""} ${job.description || ""}`.toLowerCase();
-  for (const rule of JOB_CATEGORY_RULES) {
-    if (rule.terms.some((term) => haystack.includes(term))) {
-      return { categoryKey: rule.key, categoryLabel: rule.label };
-    }
-  }
-  return { categoryKey: "general", categoryLabel: "General" };
-};
-
-const buildJobProfile = (job) => {
-  const combinedText = `${job.title || ""} ${job.company || ""} ${job.location || ""} ${job.description || ""}`;
-  const titleTokens = uniqueTokens(job.title);
-  const companyTokens = uniqueTokens(job.company);
-  const locationTokens = uniqueTokens(job.location);
-  const descTokens = uniqueTokens(job.description);
-  const combinedTokens = Array.from(new Set([...titleTokens, ...companyTokens, ...locationTokens, ...descTokens]));
-  const categoryInfo = classifyJobCategory(job);
-  const domains = detectSignals(combinedText, "domains");
-  const education = detectSignals(combinedText, "education");
-  const projects = detectSignals(combinedText, "projects");
-  const skills = detectSignals(combinedText, "skills");
-  const experienceLevel = detectExperienceLevel(combinedText);
-  return {
-    categoryInfo,
-    titleTokens,
-    companyTokens,
-    locationTokens,
-    descTokens,
-    combinedTokens,
-    domains,
-    domainSet: new Set(domains.map((item) => item.key)),
-    education,
-    educationSet: new Set(education.map((item) => item.key)),
-    projects,
-    projectSet: new Set(projects.map((item) => item.key)),
-    skills,
-    skillSet: new Set(skills.map((item) => item.key)),
-    experienceLevel,
-  };
-};
-
-const scoreJobMatch = (job, resumeProfile) => {
-  const jobProfile = buildJobProfile(job);
-  const matchedTitle = jobProfile.titleTokens.filter((token) => resumeProfile.resumeSet.has(token));
-  const matchedCompany = jobProfile.companyTokens.filter((token) => resumeProfile.resumeSet.has(token));
-  const matchedLocation = jobProfile.locationTokens.filter((token) => resumeProfile.resumeSet.has(token));
-  const matchedDesc = jobProfile.descTokens.filter((token) => resumeProfile.resumeSet.has(token));
-  const matchedAll = jobProfile.combinedTokens.filter((token) => resumeProfile.resumeSet.has(token));
-  const matchedDomains = jobProfile.domains.filter((item) => resumeProfile.domainSet.has(item.key));
-  const matchedEducation = jobProfile.education.filter((item) => resumeProfile.educationSet.has(item.key));
-  const matchedProjects = jobProfile.projects.filter((item) => resumeProfile.projectSet.has(item.key));
-  const matchedSkills = jobProfile.skills.filter((item) => resumeProfile.skillSet.has(item.key));
-  const missingDomains = differenceKeys(jobProfile.domainSet, resumeProfile.domainSet).map((key) => jobProfile.domains.find((item) => item.key === key)).filter(Boolean);
-  const missingEducation = differenceKeys(jobProfile.educationSet, resumeProfile.educationSet).map((key) => jobProfile.education.find((item) => item.key === key)).filter(Boolean);
-  const missingProjects = differenceKeys(jobProfile.projectSet, resumeProfile.projectSet).map((key) => jobProfile.projects.find((item) => item.key === key)).filter(Boolean);
-  const missingSkills = differenceKeys(jobProfile.skillSet, resumeProfile.skillSet).map((key) => jobProfile.skills.find((item) => item.key === key)).filter(Boolean);
-  const sameExperienceBand =
-    resumeProfile.experienceLevel.key !== "general" &&
-    jobProfile.experienceLevel.key !== "general" &&
-    resumeProfile.experienceLevel.key === jobProfile.experienceLevel.key;
-
-  let rawScore = 0;
-  rawScore += matchedTitle.length * 16;
-  rawScore += matchedDesc.length * 5;
-  rawScore += matchedLocation.length * 4;
-  rawScore += matchedCompany.length * 2;
-  rawScore += Math.min(matchedAll.length, 12) * 2;
-  rawScore += matchedDomains.length * 18;
-  rawScore += matchedEducation.length * 15;
-  rawScore += matchedProjects.length * 10;
-  rawScore += matchedSkills.length * 12;
-  if (sameExperienceBand) rawScore += 12;
-
-  const denominator = Math.max(
-    jobProfile.titleTokens.length * 16 +
-      Math.min(jobProfile.descTokens.length, 20) * 5 +
-      jobProfile.locationTokens.length * 4 +
-      Math.max(jobProfile.domains.length, 1) * 18 +
-      Math.max(jobProfile.skills.length, 1) * 12,
-    55
-  );
-  const normalizedScore = Math.min(100, Math.max(0, Math.round((rawScore / denominator) * 100)));
-  const highlightedKeywords = Array.from(
-    new Set([
-      ...matchedTitle,
-      ...matchedLocation,
-      ...matchedDesc,
-      ...matchedDomains.map((item) => item.label),
-      ...matchedSkills.map((item) => item.label),
-    ])
-  ).slice(0, 10);
-
-  return {
-    score: normalizedScore,
-    matchedKeywords: highlightedKeywords,
-    matchReasons: [
-      matchedDomains.length ? `Background fit: ${uniqueLabels(matchedDomains).slice(0, 2).join(", ")}` : "",
-      matchedEducation.length ? `Study or major fit: ${uniqueLabels(matchedEducation).slice(0, 2).join(", ")}` : "",
-      matchedProjects.length ? `Project experience fit: ${uniqueLabels(matchedProjects).slice(0, 2).join(", ")}` : "",
-      matchedSkills.length ? `Tooling fit: ${uniqueLabels(matchedSkills).slice(0, 4).join(", ")}` : "",
-      matchedTitle.length ? `Role-title fit: ${matchedTitle.slice(0, 3).join(", ")}` : "",
-      sameExperienceBand ? `Experience fit: ${jobProfile.experienceLevel.label}` : "",
-      matchedLocation.length ? `Location overlap: ${matchedLocation.slice(0, 2).join(", ")}` : "",
-      jobProfile.categoryInfo.categoryLabel !== "General" ? `Category fit: ${jobProfile.categoryInfo.categoryLabel}` : "",
-    ].filter(Boolean),
-    detailMatch: {
-      matchedDomains,
-      matchedEducation,
-      matchedProjects,
-      matchedSkills,
-      missingDomains: missingDomains.slice(0, 4),
-      missingEducation: missingEducation.slice(0, 3),
-      missingProjects: missingProjects.slice(0, 3),
-      missingSkills: missingSkills.slice(0, 5),
-      matchedTitle,
-      matchedLocation,
-      resumeExperience: resumeProfile.experienceLevel,
-      jobExperience: jobProfile.experienceLevel,
-      jobDomains: jobProfile.domains,
-      optimizationTips: [
-        missingDomains.length ? `Add stronger domain evidence for ${uniqueLabels(missingDomains).slice(0, 2).join(", ")}.` : "",
-        missingProjects.length ? `Show project impact around ${uniqueLabels(missingProjects).slice(0, 2).join(", ")} with outcomes and numbers.` : "",
-        missingSkills.length ? `Mention tools like ${uniqueLabels(missingSkills).slice(0, 3).join(", ")} if you have used them.` : "",
-        !matchedTitle.length ? `Mirror the job title language more directly in your summary and experience bullets.` : "",
-      ].filter(Boolean).slice(0, 4),
-    },
-  };
-};
-
 const filterJobs = (jobs, query) => {
   let result = [...jobs];
   const q = cleanText(query.q, 120).toLowerCase();
   const location = cleanText(query.location, 120).toLowerCase().replace(/\s+/g, "-");
   const workType = cleanText(query.type, 40);
-  const category = cleanText(query.category, 60).toLowerCase();
+  const category = cleanText(query.category, 40).toLowerCase();
   const limit = Math.min(Math.max(Number(query.limit || 100), 1), 500);
 
   if (q) {
@@ -718,7 +215,7 @@ const filterJobs = (jobs, query) => {
   }
 
   if (category) {
-    result = result.filter((job) => classifyJobCategory(job).categoryKey === category);
+    result = result.filter((job) => getJobCategory(job).key === category);
   }
 
   return {
@@ -726,84 +223,6 @@ const filterJobs = (jobs, query) => {
     total: result.length,
     limit,
   };
-};
-
-const sortJobsByResumeMatch = (jobs, resumeText) => {
-  const resumeProfile = buildResumeProfile(resumeText);
-  const rankedJobs = jobs
-    .map((job) => {
-      const match = scoreJobMatch(job, resumeProfile);
-      const category = classifyJobCategory(job);
-      return {
-        ...job,
-        categoryKey: category.categoryKey,
-        categoryLabel: category.categoryLabel,
-        matchScore: match.score,
-        matchedKeywords: match.matchedKeywords,
-        matchReasons: match.matchReasons,
-        detailMatch: match.detailMatch,
-      };
-    })
-    .sort((a, b) => {
-      if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
-      return new Date(b.listedAt || 0) - new Date(a.listedAt || 0);
-    });
-  return {
-    jobs: rankedJobs,
-    resumeSuggestions: buildResumeSuggestions(resumeProfile, rankedJobs),
-    resumeSignals: {
-      domains: resumeProfile.domains.map((item) => item.label),
-      education: resumeProfile.education.map((item) => item.label),
-      projects: resumeProfile.projects.map((item) => item.label),
-      skills: resumeProfile.skills.map((item) => item.label),
-      experienceLevel: resumeProfile.experienceLevel.label,
-    },
-  };
-};
-
-const enrichJobs = (jobs) =>
-  jobs.map((job) => {
-    const category = classifyJobCategory(job);
-    return {
-      ...job,
-      categoryKey: category.categoryKey,
-      categoryLabel: category.categoryLabel,
-    };
-  });
-
-const getScheduledRefreshDelayMs = (timezone = "Pacific/Auckland") => {
-  const now = new Date();
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  const parts = Object.fromEntries(formatter.formatToParts(now).map((part) => [part.type, part.value]));
-  const currentMinutes = Number(parts.hour) * 60 + Number(parts.minute);
-  const schedule = [8 * 60, 20 * 60];
-  const nextMinutes = schedule.find((value) => value > currentMinutes);
-  const targetMinutes = nextMinutes ?? schedule[0] + 24 * 60;
-  const deltaMinutes = targetMinutes - currentMinutes - (Number(parts.second) > 0 ? 0 : 0);
-  const deltaSeconds = Math.max(30, deltaMinutes * 60 - Number(parts.second));
-  return deltaSeconds * 1000;
-};
-
-const scheduleJobsRefresh = () => {
-  const delayMs = getScheduledRefreshDelayMs();
-  setTimeout(() => {
-    try {
-      triggerJobsRefresh();
-    } catch (error) {
-      console.error("Scheduled jobs refresh failed to start:", error.message);
-    } finally {
-      scheduleJobsRefresh();
-    }
-  }, delayMs);
 };
 
 const triggerJobsRefresh = () => {
@@ -826,6 +245,375 @@ const triggerJobsRefresh = () => {
   });
   child.unref();
   return { started: true };
+};
+
+const resumeKeywordGroups = {
+  education: [
+    "master",
+    "bachelor",
+    "information technology",
+    "computer science",
+    "software engineering",
+    "data science",
+    "information systems",
+    "business analytics",
+    "university",
+    "student",
+    "graduate",
+  ],
+  domains: [
+    "full-stack",
+    "full stack",
+    "backend",
+    "frontend",
+    "marketplace",
+    "automation",
+    "deployment",
+    "operations",
+    "web development",
+    "cloud",
+    "data",
+    "product",
+  ],
+  skills: [
+    "javascript",
+    "typescript",
+    "node",
+    "react",
+    "vue",
+    "python",
+    "sql",
+    "mysql",
+    "php",
+    "socket",
+    "express",
+    "html",
+    "css",
+    "docker",
+    "aws",
+    "git",
+    "linux",
+  ],
+  projects: ["greenloop", "mixport", "will-have-job", "roguelike", "marketplace", "commercial website", "student platform"],
+};
+
+const nzLocationRules = [
+  { key: "remote", label: "Remote", aliases: ["remote", "work from home", "wfh", "anywhere in nz", "new zealand wide"] },
+  { key: "hybrid", label: "Hybrid", aliases: ["hybrid"] },
+  { key: "auckland", label: "Auckland", aliases: ["auckland", "north shore", "manukau", "ponsonby", "newmarket", "auckland cbd", "university of auckland"] },
+  { key: "waikato", label: "Waikato", aliases: ["waikato", "hamilton", "cambridge", "taupo", "matamata", "te awamutu"] },
+  { key: "bayofplenty", label: "Bay of Plenty", aliases: ["bay of plenty", "tauranga", "rotorua", "whakatane"] },
+  { key: "wellington", label: "Wellington", aliases: ["wellington", "porirua", "lower hutt", "upper hutt", "kapiti"] },
+  { key: "canterbury", label: "Canterbury", aliases: ["canterbury", "christchurch", "ashburton", "timaru"] },
+  { key: "otago", label: "Otago", aliases: ["otago", "dunedin", "queenstown", "wanaka", "central otago"] },
+  { key: "southland", label: "Southland", aliases: ["southland", "invercargill", "gore"] },
+  { key: "manawatu", label: "Manawatu-Whanganui", aliases: ["manawatu", "whanganui", "palmerston north"] },
+  { key: "hawkesbay", label: "Hawke's Bay", aliases: ["hawke's bay", "hawkes bay", "napier", "hastings"] },
+  { key: "taranaki", label: "Taranaki", aliases: ["taranaki", "new plymouth"] },
+  { key: "northland", label: "Northland", aliases: ["northland", "whangarei", "kerikeri"] },
+  { key: "nelson", label: "Nelson / Tasman / Marlborough", aliases: ["nelson", "tasman", "marlborough", "blenheim", "richmond"] },
+];
+
+const jobCategoryRules = [
+  {
+    key: "it",
+    label: "IT",
+    keywords: [
+      "software",
+      "developer",
+      "engineer",
+      "program",
+      "it ",
+      "data",
+      "cloud",
+      "web",
+      "full stack",
+      "frontend",
+      "backend",
+      "devops",
+      "security",
+      "machine learning",
+      "ai ",
+    ],
+  },
+  { key: "commerce", label: "Commerce", keywords: ["commerce", "finance", "account", "business", "analyst", "procurement", "bank", "lending"] },
+  { key: "sales", label: "Sales", keywords: ["sales", "retail", "account manager", "business development", "customer success"] },
+  { key: "legal", label: "Legal", keywords: ["legal", "law", "compliance", "paralegal"] },
+  { key: "marketing", label: "Marketing", keywords: ["marketing", "content", "social media", "brand", "seo", "ecommerce", "digital growth"] },
+  { key: "operations", label: "Operations", keywords: ["operations", "logistics", "coordinator", "support", "admin", "project lead", "procurement"] },
+  { key: "health", label: "Healthcare", keywords: ["health", "nurse", "clinic", "medical", "care"] },
+  { key: "education", label: "Education", keywords: ["education", "teacher", "school", "tutor", "lecturer"] },
+  { key: "trade", label: "Trades", keywords: ["trade", "technician", "mechanic", "builder", "electrician"] },
+];
+
+const roleFamilyRules = [
+  { key: "software", label: "Software Engineering", keywords: ["software", "developer", "frontend", "backend", "full stack", "web", "engineer", "programmer"] },
+  { key: "data", label: "Data / Analytics", keywords: ["data", "analytics", "analyst", "bi", "sql", "machine learning", "reporting"] },
+  { key: "cloudops", label: "Cloud / DevOps", keywords: ["cloud", "devops", "infrastructure", "deployment", "platform", "sre", "automation"] },
+  { key: "product", label: "Product / Delivery", keywords: ["product", "project", "delivery", "scrum", "agile", "owner"] },
+  { key: "design", label: "Design / UX", keywords: ["design", "ux", "ui", "figma", "creative"] },
+  { key: "commerce", label: "Commerce / Finance", keywords: ["finance", "commerce", "procurement", "accounting", "lending", "banking"] },
+  { key: "marketing", label: "Marketing / Growth", keywords: ["marketing", "brand", "seo", "social media", "ecommerce", "growth"] },
+  { key: "operations", label: "Operations / Logistics", keywords: ["operations", "logistics", "support", "coordinator", "supply chain", "admin"] },
+  { key: "sales", label: "Sales / Customer", keywords: ["sales", "retail", "account manager", "customer", "business development"] },
+  { key: "trades", label: "Trades / Field Work", keywords: ["electrician", "mechanic", "builder", "technician", "trade"] },
+];
+
+const seniorityRules = [
+  { key: "student", label: "Student / Early Career", keywords: ["student", "intern", "internship", "graduate", "entry level", "junior", "part-time"] },
+  { key: "mid", label: "Mid-level", keywords: ["mid", "experienced", "specialist", "advisor", "analyst"] },
+  { key: "senior", label: "Senior", keywords: ["senior", "lead", "principal", "staff"] },
+  { key: "manager", label: "Manager", keywords: ["manager", "head of", "director", "chief", "cto", "vp"] },
+];
+
+const workStyleRules = [
+  { key: "full_time", label: "Full time", keywords: ["full time", "full-time"] },
+  { key: "part_time", label: "Part time", keywords: ["part time", "part-time"] },
+  { key: "contract", label: "Contract", keywords: ["contract", "fixed term", "temporary"] },
+  { key: "casual", label: "Casual", keywords: ["casual"] },
+];
+
+const extractPrintableText = (buffer) =>
+  String(buffer || "")
+    .replace(/[^\x09\x0a\x0d\x20-\x7e]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const MATCH_STOPWORDS = new Set([
+  "the", "and", "for", "with", "from", "that", "this", "have", "your", "will", "into", "onto", "about",
+  "in", "of", "on", "to", "at", "by", "an", "a", "or", "is", "be",
+  "role", "work", "team", "join", "using", "used", "new", "zealand", "nz", "our", "you", "are", "not",
+  "all", "too", "one", "two", "three", "years", "year", "month", "months", "day", "days", "level",
+  "job", "jobs", "candidate", "candidates", "experience", "strong", "great", "good", "ability", "skills",
+]);
+
+const tokenizeForMatch = (value) =>
+  Array.from(
+    new Set(
+      String(value || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9+#./ -]+/g, " ")
+        .split(/\s+/)
+        .map((token) => token.trim())
+        .filter((token) => token.length >= 2 && !MATCH_STOPWORDS.has(token))
+    )
+  );
+
+const buildTokenStats = (jobs = []) => {
+  const docFreq = new Map();
+  for (const job of jobs) {
+    const docTokens = new Set(
+      tokenizeForMatch([job.title, job.company, job.description, job.location, job.salary, job.workType].join(" "))
+    );
+    for (const token of docTokens) {
+      docFreq.set(token, (docFreq.get(token) || 0) + 1);
+    }
+  }
+  return { docFreq, docCount: Math.max(jobs.length, 1) };
+};
+
+const scoreFieldFit = (resumeTokenSet, fieldText, tokenStats) => {
+  const fieldTokens = tokenizeForMatch(fieldText);
+  if (!fieldTokens.length) return { score: 0, matchedTokens: [] };
+
+  let totalWeight = 0;
+  let matchedWeight = 0;
+  const matchedTokens = [];
+
+  for (const token of fieldTokens) {
+    const df = tokenStats.docFreq.get(token) || 0;
+    const idf = Math.log((1 + tokenStats.docCount) / (1 + df)) + 1;
+    totalWeight += idf;
+    if (resumeTokenSet.has(token)) {
+      matchedWeight += idf;
+      matchedTokens.push(token);
+    }
+  }
+
+  return {
+    score: totalWeight ? matchedWeight / totalWeight : 0,
+    matchedTokens: matchedTokens.slice(0, 6),
+  };
+};
+
+const uniqueMatches = (lower, rules = []) =>
+  rules.filter((rule) => rule.aliases.some((alias) => lower.includes(alias))).map((rule) => ({ key: rule.key, label: rule.label }));
+
+const uniqueKeywordMatches = (lower, rules = []) =>
+  rules.filter((rule) => rule.keywords.some((keyword) => lower.includes(keyword))).map((rule) => ({ key: rule.key, label: rule.label }));
+
+const getTopMissing = (resumeItems = [], matchedItems = [], limit = 3) => {
+  const matchedKeys = new Set((matchedItems || []).map((item) => item.key || item.label));
+  return (resumeItems || []).filter((item) => !matchedKeys.has(item.key || item.label)).slice(0, limit);
+};
+
+const extractResumeText = (filePath) => {
+  const pythonScript = `
+import sys
+path = sys.argv[1]
+text = ""
+try:
+    from pypdf import PdfReader
+    reader = PdfReader(path)
+    for page in reader.pages:
+        text += (page.extract_text() or "") + "\\n"
+except Exception:
+    pass
+sys.stdout.write(text)
+`;
+  try {
+    const python = spawnSync("python3", ["-c", pythonScript, filePath], { encoding: "utf8" });
+    const value = String(python.stdout || "").trim();
+    if (value) return value;
+  } catch {}
+
+  try {
+    const raw = fs.readFileSync(filePath);
+    return extractPrintableText(raw);
+  } catch {
+    return "";
+  }
+};
+
+const collectResumeSignals = (resumeText) => {
+  const lower = String(resumeText || "").toLowerCase();
+  const result = {};
+  for (const [group, keywords] of Object.entries(resumeKeywordGroups)) {
+    result[group] = keywords.filter((keyword) => lower.includes(keyword)).slice(0, 8);
+  }
+  result.locations = uniqueMatches(lower, nzLocationRules).filter((item) => item.key !== "remote" && item.key !== "hybrid");
+  result.roleFamilies = uniqueKeywordMatches(lower, roleFamilyRules);
+  result.seniority = uniqueKeywordMatches(lower, seniorityRules);
+  result.workStyles = uniqueKeywordMatches(lower, workStyleRules);
+  result.hasStudentSignals = /(student|graduate|internship|intern|university)/.test(lower);
+  return result;
+};
+
+const getJobCategory = (job) => {
+  const haystack = [job.title, job.company, job.description].join(" ").toLowerCase();
+  const matched = jobCategoryRules.find((rule) => rule.keywords.some((keyword) => haystack.includes(keyword)));
+  return matched || { key: "general", label: "General", keywords: [] };
+};
+
+const buildJobMatch = (job, resumeText, resumeSignals, tokenStats) => {
+  const haystack = [job.title, job.company, job.description, job.location, job.salary, job.workType].join(" ").toLowerCase();
+  const words = Array.from(new Set(String(resumeText || "").toLowerCase().match(/[a-z][a-z0-9+#.-]{2,}/g) || []));
+  const usefulWords = words.filter((word) => !["with", "from", "that", "this", "have", "your", "will", "university"].includes(word));
+  const matchedKeywords = usefulWords.filter((word) => haystack.includes(word)).slice(0, 8);
+  const resumeTokenSet = new Set(tokenizeForMatch(resumeText));
+  const titleFit = scoreFieldFit(resumeTokenSet, job.title, tokenStats);
+  const companyFit = scoreFieldFit(resumeTokenSet, job.company, tokenStats);
+  const descFit = scoreFieldFit(resumeTokenSet, job.description, tokenStats);
+  const locationFit = scoreFieldFit(resumeTokenSet, job.location, tokenStats);
+
+  const matchedDomains = (resumeSignals.domains || []).filter((keyword) => haystack.includes(keyword)).map((label) => ({ label }));
+  const matchedEducation = (resumeSignals.education || []).filter((keyword) => haystack.includes(keyword)).map((label) => ({ label }));
+  const matchedSkills = (resumeSignals.skills || []).filter((keyword) => haystack.includes(keyword)).map((label) => ({ label }));
+  const matchedProjects = (resumeSignals.projects || []).filter((keyword) => haystack.includes(keyword)).map((label) => ({ label }));
+  const matchedLocations = (resumeSignals.locations || []).filter((item) => haystack.includes(item.key) || haystack.includes(item.label.toLowerCase()));
+  const matchedRoleFamilies = (resumeSignals.roleFamilies || []).filter((item) => roleFamilyRules.find((rule) => rule.key === item.key)?.keywords.some((keyword) => haystack.includes(keyword)));
+  const jobRoleFamilies = uniqueKeywordMatches(haystack, roleFamilyRules);
+  const jobSeniority = uniqueKeywordMatches(haystack, seniorityRules);
+  const jobWorkStyles = uniqueKeywordMatches(haystack, workStyleRules);
+  const locationSignals = uniqueMatches(haystack, nzLocationRules);
+  const isRemoteFriendly = locationSignals.some((item) => item.key === "remote" || item.key === "hybrid");
+
+  const category = getJobCategory(job);
+  const categoryFit =
+    matchedRoleFamilies.length > 0 ||
+    (resumeSignals.domains || []).some((keyword) => haystack.includes(keyword)) ||
+    matchedSkills.length >= 2;
+  const candidateIsEarlyCareer = !!resumeSignals.hasStudentSignals;
+  const jobIsEarlyCareer = /(graduate|intern|internship|junior|entry level|entry-level|part-time)/.test(haystack);
+  const jobIsSeniorLeadership = /(chief|cto|director|head of|senior|lead|principal|manager)/.test(haystack);
+
+  const matchReasons = [];
+  if (matchedSkills.length) matchReasons.push(`Tool overlap: ${matchedSkills.slice(0, 2).map((item) => item.label).join(", ")}`);
+  if (matchedDomains.length) matchReasons.push(`Background fit: ${matchedDomains.slice(0, 2).map((item) => item.label).join(", ")}`);
+  if (matchedProjects.length) matchReasons.push(`Project evidence: ${matchedProjects.slice(0, 2).map((item) => item.label).join(", ")}`);
+  if (matchedRoleFamilies.length) matchReasons.push(`Role fit: ${matchedRoleFamilies.slice(0, 2).map((item) => item.label).join(", ")}`);
+  if (matchedLocations.length) matchReasons.push(`Location fit: ${matchedLocations.slice(0, 2).map((item) => item.label).join(", ")}`);
+  else if (isRemoteFriendly) matchReasons.push("Location fit: Remote / hybrid");
+  if (titleFit.matchedTokens.length) matchReasons.push(`Title overlap: ${titleFit.matchedTokens.slice(0, 3).join(", ")}`);
+  if (candidateIsEarlyCareer && jobIsEarlyCareer) matchReasons.push("Stage fit: Student / graduate friendly");
+  else if (candidateIsEarlyCareer && jobIsSeniorLeadership) matchReasons.push("Stage gap: Senior leadership role");
+  if ((resumeSignals.workStyles || []).length && jobWorkStyles.length) {
+    const overlappingWorkStyles = (resumeSignals.workStyles || []).filter((item) => jobWorkStyles.some((rule) => rule.key === item.key));
+    if (overlappingWorkStyles.length) {
+      matchReasons.push(`Work style fit: ${overlappingWorkStyles.map((item) => item.label).join(", ")}`);
+    }
+  }
+  if (categoryFit) matchReasons.push(`Category fit: ${category.label}`);
+
+  const missingSkills = (resumeSignals.skills || []).filter((keyword) => !haystack.includes(keyword)).slice(0, 3).map((label) => ({ label }));
+  const missingDomains = (resumeSignals.domains || []).filter((keyword) => !haystack.includes(keyword)).slice(0, 2).map((label) => ({ label }));
+  const missingProjects = (resumeSignals.projects || []).filter((keyword) => !haystack.includes(keyword)).slice(0, 2).map((label) => ({ label }));
+  const missingRoleFamilies = getTopMissing(resumeSignals.roleFamilies || [], matchedRoleFamilies, 3);
+
+  let matchScore = 10;
+  matchScore += Math.min(matchedKeywords.length * 2, 16);
+  matchScore += matchedSkills.length * 7;
+  matchScore += matchedDomains.length * 6;
+  matchScore += matchedProjects.length * 7;
+  matchScore += matchedEducation.length * 5;
+  matchScore += matchedRoleFamilies.length * 10;
+  if (matchedLocations.length) matchScore += 12;
+  else if (isRemoteFriendly) matchScore += 6;
+  matchScore += Math.round(titleFit.score * 12);
+  matchScore += Math.round(descFit.score * 8);
+  matchScore += Math.round(locationFit.score * 5);
+  matchScore += Math.round(companyFit.score * 3);
+  if (candidateIsEarlyCareer && jobIsEarlyCareer) matchScore += 10;
+  if (candidateIsEarlyCareer && jobIsSeniorLeadership) matchScore -= 10;
+  if ((resumeSignals.workStyles || []).length && jobWorkStyles.length) {
+    const overlap = (resumeSignals.workStyles || []).filter((item) => jobWorkStyles.some((rule) => rule.key === item.key)).length;
+    matchScore += overlap * 4;
+  }
+  if (jobSeniority.some((item) => item.key === "student") && candidateIsEarlyCareer) matchScore += 4;
+  if (jobRoleFamilies.some((item) => item.key === "software") && matchedSkills.length >= 2) matchScore += 4;
+  if (job.featured) matchScore += 2;
+  matchScore = Math.max(5, Math.min(98, matchScore));
+
+  const optimizationTips = [];
+  if (!matchedSkills.length) optimizationTips.push("Add a clearer technology stack section near the top of the resume.");
+  if (!matchedProjects.length) optimizationTips.push("Highlight shipped projects with measurable product or deployment outcomes.");
+  if (!matchedDomains.length) optimizationTips.push("Use role-relevant wording such as full-stack, backend, deployment, operations, marketing, or analytics.");
+  if (!matchedLocations.length && !isRemoteFriendly) optimizationTips.push("Add your target NZ city or region so location fit can be scored beyond Auckland.");
+  if (candidateIsEarlyCareer && jobIsSeniorLeadership) optimizationTips.push("This role reads as senior. Graduate, junior, internship, and coordinator roles are more realistic targets.");
+  if (!matchedRoleFamilies.length && jobRoleFamilies.length) optimizationTips.push(`Mirror the role language more directly, e.g. ${jobRoleFamilies.slice(0, 2).map((item) => item.label).join(" / ")}.`);
+  if (!optimizationTips.length) optimizationTips.push("This role already aligns well. Emphasize outcomes and production ownership.");
+
+  return {
+    ...job,
+    categoryKey: category.key,
+    categoryLabel: category.label,
+    matchScore,
+    matchReasons: matchReasons.slice(0, 5),
+    matchedKeywords,
+    detailMatch: {
+      matchedDomains,
+      matchedEducation,
+      matchedLocations,
+      matchedProjects,
+      matchedRoleFamilies,
+      matchedSkills,
+      missingSkills,
+      missingDomains,
+      missingProjects,
+      missingRoleFamilies,
+      jobLocations: locationSignals,
+      jobRoleFamilies,
+      jobSeniority,
+      jobWorkStyles,
+      lexicalFit: {
+        title: titleFit,
+        company: companyFit,
+        description: descFit,
+        location: locationFit,
+      },
+      optimizationTips,
+    },
+  };
 };
 
 const signToken = (user) =>
@@ -887,34 +675,6 @@ const authRequired = asyncHandler(async (req, res, next) => {
   }
 });
 
-const authRateLimit = createRateLimiter({
-  windowMs: 10 * 60 * 1000,
-  max: 12,
-  message: "Too many auth requests. Please wait a few minutes and try again.",
-  keyFn: (req) => `auth:${req.ip}:${req.path}`,
-});
-
-const uploadRateLimit = createRateLimiter({
-  windowMs: 10 * 60 * 1000,
-  max: 30,
-  message: "Upload limit reached. Please wait before uploading more files.",
-  keyFn: (req) => `upload:${req.ip}:${req.user?.id || "guest"}`,
-});
-
-const publicResumeUploadRateLimit = createRateLimiter({
-  windowMs: 10 * 60 * 1000,
-  max: 12,
-  message: "Resume upload limit reached. Please wait before trying again.",
-  keyFn: (req) => `resume-upload:${req.ip}`,
-});
-
-const supportRateLimit = createRateLimiter({
-  windowMs: 15 * 60 * 1000,
-  max: 6,
-  message: "Too many support submissions. Please wait before sending another request.",
-  keyFn: (req) => `support:${req.ip}`,
-});
-
 const verifiedRequired = (req, res, next) => {
   if (!req.user) return res.status(401).json({ error: "Authentication required." });
   if (req.user.verification_status !== "verified") {
@@ -969,26 +729,6 @@ const createNotification = async (userId, type, message, scheduledFor = null) =>
     "INSERT INTO notifications (user_id, type, message, scheduled_for, status) VALUES (?, ?, ?, ?, 'pending')",
     [userId, type, message, scheduledFor]
   );
-};
-
-const getAdminUserIds = async () => {
-  if (!ADMIN_EMAILS.length) return [];
-  const placeholders = ADMIN_EMAILS.map(() => "?").join(",");
-  const [rows] = await pool.execute(
-    `SELECT id
-     FROM users
-     WHERE LOWER(email) IN (${placeholders})`,
-    ADMIN_EMAILS
-  );
-  return rows.map((row) => Number(row.id)).filter(Boolean);
-};
-
-const notifyAdmins = async (type, message, skipUserId = null) => {
-  const adminIds = await getAdminUserIds();
-  const uniqueIds = Array.from(new Set(adminIds)).filter((userId) => Number(userId) !== Number(skipUserId || 0));
-  if (!uniqueIds.length) return 0;
-  await Promise.all(uniqueIds.map((userId) => createNotification(userId, type, message)));
-  return uniqueIds.length;
 };
 
 const mapConversationRow = (row, currentUserId) => {
@@ -1146,6 +886,7 @@ const ensureSchema = async () => {
       condition_status VARCHAR(80) NOT NULL,
       pickup_windows TEXT,
       images_json JSON,
+      videos_json JSON,
       delivery_options_json JSON,
       donation_available TINYINT(1) NOT NULL DEFAULT 0,
       status ENUM('available', 'reserved', 'donated', 'completed') NOT NULL DEFAULT 'available',
@@ -1254,20 +995,6 @@ const ensureSchema = async () => {
       created_by INT DEFAULT NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
-    `CREATE TABLE IF NOT EXISTS opportunity_applications (
-      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-      opportunity_id INT NOT NULL,
-      user_id INT NOT NULL,
-      applicant_name VARCHAR(180) NOT NULL,
-      applicant_email VARCHAR(180) NOT NULL,
-      applicant_phone VARCHAR(80) DEFAULT NULL,
-      cover_message TEXT,
-      cv_url TEXT DEFAULT NULL,
-      status ENUM('submitted', 'reviewed', 'rejected') NOT NULL DEFAULT 'submitted',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      CONSTRAINT fk_opp_application_opportunity FOREIGN KEY (opportunity_id) REFERENCES opportunities(id) ON DELETE CASCADE,
-      CONSTRAINT fk_opp_application_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS memberships (
       id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
       user_id INT NOT NULL,
@@ -1287,18 +1014,6 @@ const ensureSchema = async () => {
       status ENUM('pending', 'sent') NOT NULL DEFAULT 'pending',
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT fk_notification_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
-    `CREATE TABLE IF NOT EXISTS support_requests (
-      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-      user_id INT DEFAULT NULL,
-      full_name VARCHAR(180) NOT NULL,
-      email VARCHAR(190) NOT NULL,
-      category VARCHAR(80) NOT NULL,
-      page_url VARCHAR(255) DEFAULT NULL,
-      message TEXT NOT NULL,
-      status ENUM('open', 'reviewing', 'resolved') NOT NULL DEFAULT 'open',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      CONSTRAINT fk_support_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS community_posts (
       id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -1357,7 +1072,7 @@ const ensureSchema = async () => {
   await ensureColumn("users", "avatar_url", "avatar_url TEXT NULL AFTER student_id");
   await ensureColumn("conversation_messages", "image_url", "image_url TEXT NULL AFTER body");
   await ensureColumn("user_presence", "is_online", "is_online TINYINT(1) NOT NULL DEFAULT 1 AFTER last_seen_at");
-  await ensureColumn("opportunities", "apply_url", "apply_url TEXT NULL AFTER summary");
+  await ensureColumn("items", "videos_json", "videos_json JSON NULL AFTER images_json");
   await ensureBootstrapAdmin();
 
   const [countRows] = await pool.execute("SELECT COUNT(*) AS count FROM opportunities");
@@ -1403,26 +1118,31 @@ app.get("/api/health", (_req, res) => {
 app.post(
   "/api/uploads",
   authRequired,
-  uploadRateLimit,
   upload.single("file"),
   asyncHandler(async (req, res) => {
     if (!req.file) return res.status(400).json({ error: "File is required." });
+    const mime = String(req.file.mimetype || "").toLowerCase();
+    const isImage = mime.startsWith("image/");
+    const isVideo = mime.startsWith("video/");
+    if (!isImage && !isVideo) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ error: "Only image and video uploads are supported." });
+    }
     res.json({ url: `/uploads/${req.file.filename}` });
   })
 );
 
 app.post(
   "/api/uploads/resume",
-  publicResumeUploadRateLimit,
   upload.single("file"),
   asyncHandler(async (req, res) => {
-    if (!req.file) return res.status(400).json({ error: "File is required." });
-    const ext = path.extname(req.file.originalname || "").toLowerCase();
-    if (ext !== ".pdf") {
-      try {
-        fs.unlinkSync(req.file.path);
-      } catch {}
-      return res.status(400).json({ error: "Only PDF resumes are supported here." });
+    if (!req.file) return res.status(400).json({ error: "PDF file is required." });
+    const mime = String(req.file.mimetype || "").toLowerCase();
+    const ext = String(path.extname(req.file.originalname || "") || "").toLowerCase();
+    const isPdf = mime === "application/pdf" || mime === "application/octet-stream" || ext === ".pdf";
+    if (!isPdf) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ error: "Resume must be a PDF file." });
     }
     res.json({ url: `/uploads/${req.file.filename}` });
   })
@@ -1430,7 +1150,6 @@ app.post(
 
 app.post(
   "/api/auth/register/start",
-  authRateLimit,
   asyncHandler(async (req, res) => {
     const { fullName, email, password, schoolName, studentId, avatarDataUrl } = req.body;
     if (!fullName || !email || !password || !schoolName || !studentId) {
@@ -1490,7 +1209,6 @@ app.post(
 
 app.post(
   "/api/auth/register/verify",
-  authRateLimit,
   asyncHandler(async (req, res) => {
     const normalizedEmail = String(req.body.email || "").trim().toLowerCase();
     const normalizedCode = String(req.body.code || "").trim();
@@ -1539,7 +1257,6 @@ app.post(
 
 app.post(
   "/api/auth/login",
-  authRateLimit,
   asyncHandler(async (req, res) => {
     const { email, password } = req.body;
     const normalizedEmail = String(email || "").trim().toLowerCase();
@@ -1560,7 +1277,6 @@ app.post(
 
 app.post(
   "/api/auth/forgot-password",
-  authRateLimit,
   asyncHandler(async (req, res) => {
     const normalizedEmail = String(req.body.email || "").trim().toLowerCase();
     if (!normalizedEmail) {
@@ -1582,7 +1298,7 @@ app.post(
     await sendPasswordResetEmail({ user, resetToken });
 
     const response = { ok: true, message: "Password reset email sent." };
-    if (shouldExposeQaResetLink) {
+    if (EXPOSE_RESET_LINKS) {
       response.resetUrl = `/reset-password?token=${encodeURIComponent(resetToken)}`;
     }
     res.json(response);
@@ -1591,7 +1307,6 @@ app.post(
 
 app.post(
   "/api/auth/reset-password",
-  authRateLimit,
   asyncHandler(async (req, res) => {
     const { token, password } = req.body;
     if (!token || !password) {
@@ -1630,40 +1345,6 @@ app.get(
   })
 );
 
-app.post(
-  "/api/support",
-  supportRateLimit,
-  asyncHandler(async (req, res) => {
-    const fullName = cleanText(req.body.fullName || req.user?.full_name, 180);
-    const email = String(req.body.email || req.user?.email || "").trim().toLowerCase();
-    const category = cleanText(req.body.category, 80) || "general";
-    const pageUrl = cleanText(req.body.pageUrl, 255);
-    const message = cleanText(req.body.message, 4000);
-
-    if (!fullName || !email || !message) {
-      return res.status(400).json({ error: "Name, email, and message are required." });
-    }
-    if (!isValidEmail(email)) {
-      return res.status(400).json({ error: "Enter a valid support email address." });
-    }
-    if (message.length < 12) {
-      return res.status(400).json({ error: "Support message is too short." });
-    }
-
-    const [result] = await pool.execute(
-      `INSERT INTO support_requests (user_id, full_name, email, category, page_url, message)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [req.user?.id || null, fullName, email, category, pageUrl || null, message]
-    );
-    await notifyAdmins("support", `${fullName} submitted a ${category} support request.`, req.user?.id || null);
-    if (req.user?.id) {
-      await createNotification(req.user.id, "support", "Your support request was received.");
-      await logUserActivity(req, req.user.id, "support_request_create", "support_request", result.insertId, { category, pageUrl });
-    }
-    res.status(201).json({ ok: true, id: result.insertId, supportEmail: SUPPORT_EMAIL });
-  })
-);
-
 app.get(
   "/api/dashboard",
   authRequired,
@@ -1671,7 +1352,7 @@ app.get(
     const [[userItems], [reservations], [notifications], [memberships]] = await Promise.all([
       pool.execute("SELECT COUNT(*) AS count FROM items WHERE seller_id = ?", [req.user.id]),
       pool.execute(
-        `SELECT r.id, r.status, r.pickup_time, i.title, i.seller_id
+        `SELECT r.id, r.status, r.pickup_time, i.title
          FROM reservations r
          JOIN items i ON i.id = r.item_id
          WHERE r.buyer_id = ? OR r.seller_id = ?
@@ -1814,22 +1495,11 @@ app.get(
   authRequired,
   adminRequired,
   asyncHandler(async (_req, res) => {
-    const [userRows, postRows, activityRows, pendingRows, opsRows, applicationRows, supportRows] = await Promise.all([
+    const [userRows, postRows, activityRows, pendingRows] = await Promise.all([
       pool.execute("SELECT COUNT(*) AS count FROM users"),
       pool.execute("SELECT COUNT(*) AS count FROM community_posts"),
       pool.execute("SELECT COUNT(*) AS count FROM user_activity_logs"),
       pool.execute("SELECT COUNT(*) AS count FROM users WHERE verification_status = 'pending'"),
-      pool.execute(
-        `SELECT
-           (
-             (SELECT COUNT(*) FROM reservations) +
-             (SELECT COUNT(*) FROM delivery_requests) +
-             (SELECT COUNT(*) FROM service_requests) +
-             (SELECT COUNT(*) FROM donations)
-           ) AS count`
-      ),
-      pool.execute("SELECT COUNT(*) AS count FROM opportunity_applications"),
-      pool.execute("SELECT COUNT(*) AS count FROM support_requests"),
     ]);
     res.json({
       totals: {
@@ -1837,62 +1507,8 @@ app.get(
         posts: Number(postRows[0][0]?.count || 0),
         activity: Number(activityRows[0][0]?.count || 0),
         pendingVerifications: Number(pendingRows[0][0]?.count || 0),
-        opsRequests: Number(opsRows[0][0]?.count || 0),
-        applications: Number(applicationRows[0][0]?.count || 0),
-        supportRequests: Number(supportRows[0][0]?.count || 0),
       },
     });
-  })
-);
-
-app.get(
-  "/api/admin/support-requests",
-  authRequired,
-  adminRequired,
-  asyncHandler(async (_req, res) => {
-    const [rows] = await pool.execute(
-      `SELECT *
-       FROM support_requests
-       ORDER BY created_at DESC
-       LIMIT 200`
-    );
-    res.json({
-      requests: rows.map((row) => ({
-        id: row.id,
-        userId: row.user_id,
-        fullName: row.full_name,
-        email: row.email,
-        category: row.category,
-        pageUrl: row.page_url || "",
-        message: row.message,
-        status: row.status,
-        createdAt: row.created_at,
-      })),
-    });
-  })
-);
-
-app.post(
-  "/api/admin/support-requests/:id/status",
-  authRequired,
-  adminRequired,
-  asyncHandler(async (req, res) => {
-    const supportRequestId = Number(req.params.id);
-    const status = cleanText(req.body.status, 40);
-    if (!["open", "reviewing", "resolved"].includes(status)) {
-      return res.status(400).json({ error: "Unsupported support status." });
-    }
-    const [rows] = await pool.execute("SELECT * FROM support_requests WHERE id = ? LIMIT 1", [supportRequestId]);
-    const supportRequest = rows[0];
-    if (!supportRequest) {
-      return res.status(404).json({ error: "Support request not found." });
-    }
-    await pool.execute("UPDATE support_requests SET status = ? WHERE id = ?", [status, supportRequestId]);
-    if (supportRequest.user_id) {
-      await createNotification(supportRequest.user_id, "support", `Your support request is now ${status}.`);
-    }
-    await logUserActivity(req, req.user.id, "admin_support_status_update", "support_request", supportRequestId, { status });
-    res.json({ ok: true });
   })
 );
 
@@ -2053,458 +1669,6 @@ app.get(
   })
 );
 
-app.get(
-  "/api/admin/ops-requests",
-  authRequired,
-  adminRequired,
-  asyncHandler(async (_req, res) => {
-    const [reservationRows, deliveryRows, serviceRows, donationRows] = await Promise.all([
-      pool.execute(
-        `SELECT
-           'reservation' AS request_type,
-           r.id,
-           r.status,
-           r.note AS details,
-           r.created_at,
-           r.pickup_time AS requested_time,
-           i.id AS item_id,
-           i.title AS item_title,
-           buyer.full_name AS requester_name,
-           buyer.email AS requester_email
-         FROM reservations r
-         JOIN items i ON i.id = r.item_id
-         JOIN users buyer ON buyer.id = r.buyer_id
-         ORDER BY r.created_at DESC
-         LIMIT 100`
-      ),
-      pool.execute(
-        `SELECT
-           'delivery' AS request_type,
-           d.id,
-           d.status,
-           CONCAT(d.delivery_type, ' · ', d.from_location, ' → ', d.to_location, IFNULL(CONCAT(' · ', d.notes), '')) AS details,
-           d.created_at,
-           NULL AS requested_time,
-           d.item_id,
-           i.title AS item_title,
-           u.full_name AS requester_name,
-           u.email AS requester_email
-         FROM delivery_requests d
-         LEFT JOIN items i ON i.id = d.item_id
-         JOIN users u ON u.id = d.user_id
-         ORDER BY d.created_at DESC
-         LIMIT 100`
-      ),
-      pool.execute(
-        `SELECT
-           'service' AS request_type,
-           s.id,
-           s.status,
-           CONCAT(s.service_type, IFNULL(CONCAT(' · ', s.notes), '')) AS details,
-           s.created_at,
-           NULL AS requested_time,
-           s.item_id,
-           i.title AS item_title,
-           u.full_name AS requester_name,
-           u.email AS requester_email
-         FROM service_requests s
-         LEFT JOIN items i ON i.id = s.item_id
-         JOIN users u ON u.id = s.user_id
-         ORDER BY s.created_at DESC
-         LIMIT 100`
-      ),
-      pool.execute(
-        `SELECT
-           'donation' AS request_type,
-           d.id,
-           d.status,
-           CONCAT(d.org_name, IFNULL(CONCAT(' · ', d.notes), '')) AS details,
-           d.created_at,
-           NULL AS requested_time,
-           d.item_id,
-           i.title AS item_title,
-           u.full_name AS requester_name,
-           u.email AS requester_email
-         FROM donations d
-         LEFT JOIN items i ON i.id = d.item_id
-         JOIN users u ON u.id = d.user_id
-         ORDER BY d.created_at DESC
-         LIMIT 100`
-      ),
-    ]);
-
-    const requests = [
-      ...reservationRows[0],
-      ...deliveryRows[0],
-      ...serviceRows[0],
-      ...donationRows[0],
-    ]
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-      .slice(0, 200)
-      .map((row) => ({
-        id: row.id,
-        type: row.request_type,
-        status: row.status,
-        details: row.details || "",
-        createdAt: row.created_at,
-        requestedTime: row.requested_time,
-        itemId: row.item_id,
-        itemTitle: row.item_title || "",
-        requesterName: row.requester_name || "",
-        requesterEmail: row.requester_email || "",
-      }));
-
-    res.json({ requests });
-  })
-);
-
-app.post(
-  "/api/admin/ops-requests/:type/:id/status",
-  authRequired,
-  adminRequired,
-  asyncHandler(async (req, res) => {
-    const requestType = String(req.params.type || "").trim().toLowerCase();
-    const requestId = Number(req.params.id);
-    const nextStatus = String(req.body.status || "").trim();
-
-    const configMap = {
-      reservation: {
-        table: "reservations",
-        allowed: ["pending", "confirmed", "completed", "cancelled"],
-        selectSql: `SELECT r.*, i.title AS item_title
-          FROM reservations r
-          JOIN items i ON i.id = r.item_id
-          WHERE r.id = ?
-          LIMIT 1`,
-        applyStatus: async (entry) => {
-          await pool.execute("UPDATE reservations SET status = ? WHERE id = ?", [nextStatus, requestId]);
-          if (nextStatus === "cancelled") {
-            await pool.execute("UPDATE items SET status = 'available' WHERE id = ?", [entry.item_id]);
-          } else if (nextStatus === "completed") {
-            await pool.execute("UPDATE items SET status = 'completed' WHERE id = ?", [entry.item_id]);
-          } else {
-            await pool.execute("UPDATE items SET status = 'reserved' WHERE id = ?", [entry.item_id]);
-          }
-          await createNotification(entry.buyer_id, "pickup-status", `Reservation for "${entry.item_title}" is now ${nextStatus}.`);
-          await createNotification(entry.seller_id, "pickup-status", `Reservation for "${entry.item_title}" is now ${nextStatus}.`);
-        },
-      },
-      delivery: {
-        table: "delivery_requests",
-        allowed: ["requested", "scheduled", "completed"],
-        selectSql: "SELECT * FROM delivery_requests WHERE id = ? LIMIT 1",
-        applyStatus: async (entry) => {
-          await pool.execute("UPDATE delivery_requests SET status = ? WHERE id = ?", [nextStatus, requestId]);
-          await createNotification(entry.user_id, "delivery-status", `Delivery request is now ${nextStatus}.`);
-        },
-      },
-      service: {
-        table: "service_requests",
-        allowed: ["requested", "in_progress", "completed"],
-        selectSql: "SELECT * FROM service_requests WHERE id = ? LIMIT 1",
-        applyStatus: async (entry) => {
-          await pool.execute("UPDATE service_requests SET status = ? WHERE id = ?", [nextStatus, requestId]);
-          await createNotification(entry.user_id, "service-status", `Service request is now ${nextStatus}.`);
-        },
-      },
-      donation: {
-        table: "donations",
-        allowed: ["submitted", "accepted", "completed"],
-        selectSql: "SELECT * FROM donations WHERE id = ? LIMIT 1",
-        applyStatus: async (entry) => {
-          await pool.execute("UPDATE donations SET status = ? WHERE id = ?", [nextStatus, requestId]);
-          await createNotification(entry.user_id, "donation-status", `Donation request is now ${nextStatus}.`);
-        },
-      },
-    };
-
-    const config = configMap[requestType];
-    if (!config || !requestId) {
-      return res.status(400).json({ error: "Unsupported operations request." });
-    }
-    if (!config.allowed.includes(nextStatus)) {
-      return res.status(400).json({ error: "Unsupported status for this request type." });
-    }
-
-    const [rows] = await pool.execute(config.selectSql, [requestId]);
-    const entry = rows[0];
-    if (!entry) {
-      return res.status(404).json({ error: "Operations request not found." });
-    }
-
-    await config.applyStatus(entry);
-    await logUserActivity(req, req.user.id, "admin_ops_status_update", config.table, requestId, {
-      requestType,
-      status: nextStatus,
-    });
-    res.json({ ok: true });
-  })
-);
-
-app.get(
-  "/api/admin/items",
-  authRequired,
-  adminRequired,
-  asyncHandler(async (req, res) => {
-    const query = cleanText(req.query.q, 120);
-    const filters = ["1=1"];
-    const params = [];
-    if (query) {
-      filters.push("(i.title LIKE ? OR i.location LIKE ? OR u.full_name LIKE ? OR u.email LIKE ?)");
-      params.push(`%${query}%`, `%${query}%`, `%${query}%`, `%${query}%`);
-    }
-    const [rows] = await pool.execute(
-      `SELECT
-         i.*,
-         u.full_name AS seller_name,
-         u.email AS seller_email
-       FROM items i
-       JOIN users u ON u.id = i.seller_id
-       WHERE ${filters.join(" AND ")}
-       ORDER BY i.created_at DESC
-       LIMIT 200`,
-      params
-    );
-    res.json({
-      items: rows.map((row) => ({
-        id: row.id,
-        sellerId: row.seller_id,
-        sellerName: row.seller_name,
-        sellerEmail: row.seller_email,
-        title: row.title,
-        description: row.description,
-        category: row.category,
-        location: row.location,
-        price: Number(row.price || 0),
-        conditionStatus: row.condition_status,
-        pickupWindows: row.pickup_windows || "",
-        images: normalizeList(row.images_json),
-        deliveryOptions: normalizeList(row.delivery_options_json),
-        donationAvailable: !!row.donation_available,
-        status: row.status,
-        createdAt: row.created_at,
-      })),
-    });
-  })
-);
-
-app.patch(
-  "/api/admin/items/:id",
-  authRequired,
-  adminRequired,
-  asyncHandler(async (req, res) => {
-    const itemId = Number(req.params.id);
-    const [rows] = await pool.execute("SELECT * FROM items WHERE id = ? LIMIT 1", [itemId]);
-    const item = rows[0];
-    if (!item) return res.status(404).json({ error: "Item not found." });
-
-    const title = cleanText(req.body.title, 180) || item.title;
-    const description = cleanText(req.body.description, 4000) || item.description;
-    const category = cleanText(req.body.category, 80) || item.category;
-    const location = cleanText(req.body.location, 180) || item.location;
-    const conditionStatus = cleanText(req.body.conditionStatus, 80) || item.condition_status;
-    const pickupWindows = cleanText(req.body.pickupWindows, 255) || "";
-    const status = cleanText(req.body.status, 40) || item.status;
-    const price = req.body.price == null || req.body.price === "" ? Number(item.price) : Number(req.body.price);
-    const images = normalizeList(req.body.images);
-    const deliveryOptions = normalizeList(req.body.deliveryOptions);
-    const donationAvailable = req.body.donationAvailable ? 1 : 0;
-
-    if (!["available", "reserved", "donated", "completed"].includes(status)) {
-      return res.status(400).json({ error: "Unsupported item status." });
-    }
-    if (!Number.isFinite(price) || price < 0) {
-      return res.status(400).json({ error: "Price must be zero or higher." });
-    }
-
-    await pool.execute(
-      `UPDATE items
-       SET title = ?, description = ?, category = ?, location = ?, price = ?, condition_status = ?, pickup_windows = ?,
-           images_json = ?, delivery_options_json = ?, donation_available = ?, status = ?
-       WHERE id = ?`,
-      [
-        title,
-        description,
-        category,
-        location,
-        price,
-        conditionStatus,
-        pickupWindows,
-        JSON.stringify(images),
-        JSON.stringify(deliveryOptions),
-        donationAvailable,
-        status,
-        itemId,
-      ]
-    );
-    await logUserActivity(req, req.user.id, "admin_item_update", "item", itemId, { status, price });
-    res.json({ ok: true });
-  })
-);
-
-app.delete(
-  "/api/admin/items/:id",
-  authRequired,
-  adminRequired,
-  asyncHandler(async (req, res) => {
-    const itemId = Number(req.params.id);
-    const [rows] = await pool.execute("SELECT title, seller_id FROM items WHERE id = ? LIMIT 1", [itemId]);
-    const item = rows[0];
-    if (!item) return res.status(404).json({ error: "Item not found." });
-    await pool.execute("DELETE FROM items WHERE id = ?", [itemId]);
-    await createNotification(item.seller_id, "listing", `Your listing "${item.title}" was removed by admin.`);
-    await logUserActivity(req, req.user.id, "admin_item_delete", "item", itemId, { title: item.title });
-    res.json({ ok: true });
-  })
-);
-
-app.get(
-  "/api/admin/opportunities",
-  authRequired,
-  adminRequired,
-  asyncHandler(async (req, res) => {
-    const [rows] = await pool.execute(
-      `SELECT
-         o.*,
-         u.full_name AS creator_name,
-         u.email AS creator_email,
-         COUNT(oa.id) AS application_count
-       FROM opportunities o
-       LEFT JOIN users u ON u.id = o.created_by
-       LEFT JOIN opportunity_applications oa ON oa.opportunity_id = o.id
-       GROUP BY o.id
-       ORDER BY o.created_at DESC
-       LIMIT 200`
-    );
-    res.json({
-      opportunities: rows.map((row) => ({
-        id: row.id,
-        title: row.title,
-        orgName: row.org_name,
-        opportunityType: row.opportunity_type,
-        location: row.location,
-        skills: normalizeList(row.skills_json),
-        summary: row.summary,
-        applyUrl: row.apply_url || "",
-        creatorName: row.creator_name || "",
-        creatorEmail: row.creator_email || "",
-        applicationCount: Number(row.application_count || 0),
-        createdAt: row.created_at,
-      })),
-    });
-  })
-);
-
-app.patch(
-  "/api/admin/opportunities/:id",
-  authRequired,
-  adminRequired,
-  asyncHandler(async (req, res) => {
-    const opportunityId = Number(req.params.id);
-    const [rows] = await pool.execute("SELECT * FROM opportunities WHERE id = ? LIMIT 1", [opportunityId]);
-    const existing = rows[0];
-    if (!existing) return res.status(404).json({ error: "Opportunity not found." });
-
-    const title = cleanText(req.body.title, 180) || existing.title;
-    const orgName = cleanText(req.body.orgName, 180) || existing.org_name;
-    const opportunityType = cleanText(req.body.opportunityType, 40) || existing.opportunity_type;
-    const location = cleanText(req.body.location, 180) || existing.location;
-    const summary = cleanText(req.body.summary, 4000) || existing.summary;
-    const applyUrl = cleanText(req.body.applyUrl, 2000);
-    const skills = normalizeList(req.body.skills);
-
-    if (!["internship", "volunteer"].includes(opportunityType)) {
-      return res.status(400).json({ error: "Unsupported opportunity type." });
-    }
-
-    await pool.execute(
-      `UPDATE opportunities
-       SET title = ?, org_name = ?, opportunity_type = ?, location = ?, skills_json = ?, summary = ?, apply_url = ?
-       WHERE id = ?`,
-      [title, orgName, opportunityType, location, JSON.stringify(skills), summary, applyUrl || "", opportunityId]
-    );
-    await logUserActivity(req, req.user.id, "admin_opportunity_update", "opportunity", opportunityId, { opportunityType, orgName });
-    res.json({ ok: true });
-  })
-);
-
-app.delete(
-  "/api/admin/opportunities/:id",
-  authRequired,
-  adminRequired,
-  asyncHandler(async (req, res) => {
-    const opportunityId = Number(req.params.id);
-    const [rows] = await pool.execute("SELECT title FROM opportunities WHERE id = ? LIMIT 1", [opportunityId]);
-    const opportunity = rows[0];
-    if (!opportunity) return res.status(404).json({ error: "Opportunity not found." });
-    await pool.execute("DELETE FROM opportunities WHERE id = ?", [opportunityId]);
-    await logUserActivity(req, req.user.id, "admin_opportunity_delete", "opportunity", opportunityId, { title: opportunity.title });
-    res.json({ ok: true });
-  })
-);
-
-app.get(
-  "/api/admin/opportunity-applications",
-  authRequired,
-  adminRequired,
-  asyncHandler(async (_req, res) => {
-    const [rows] = await pool.execute(
-      `SELECT
-         oa.*,
-         o.title AS opportunity_title,
-         o.org_name,
-         u.full_name AS user_full_name,
-         u.email AS user_email
-       FROM opportunity_applications oa
-       JOIN opportunities o ON o.id = oa.opportunity_id
-       JOIN users u ON u.id = oa.user_id
-       ORDER BY oa.created_at DESC
-       LIMIT 200`
-    );
-    res.json({
-      applications: rows.map((row) => ({
-        id: row.id,
-        opportunityId: row.opportunity_id,
-        opportunityTitle: row.opportunity_title,
-        orgName: row.org_name,
-        applicantName: row.applicant_name,
-        applicantEmail: row.applicant_email,
-        applicantPhone: row.applicant_phone || "",
-        coverMessage: row.cover_message || "",
-        cvUrl: row.cv_url || "",
-        status: row.status,
-        createdAt: row.created_at,
-        user: {
-          fullName: row.user_full_name,
-          email: row.user_email,
-        },
-      })),
-    });
-  })
-);
-
-app.post(
-  "/api/admin/opportunity-applications/:id/status",
-  authRequired,
-  adminRequired,
-  asyncHandler(async (req, res) => {
-    const applicationId = Number(req.params.id);
-    const status = String(req.body.status || "");
-    if (!["submitted", "reviewed", "rejected"].includes(status)) {
-      return res.status(400).json({ error: "Unsupported application status." });
-    }
-    const [rows] = await pool.execute("SELECT * FROM opportunity_applications WHERE id = ? LIMIT 1", [applicationId]);
-    const application = rows[0];
-    if (!application) {
-      return res.status(404).json({ error: "Application not found." });
-    }
-    await pool.execute("UPDATE opportunity_applications SET status = ? WHERE id = ?", [status, applicationId]);
-    await createNotification(application.user_id, "job-application", `Your application status is now ${status}.`);
-    await logUserActivity(req, req.user.id, "opportunity_application_status", "opportunity_application", applicationId, { status });
-    res.json({ ok: true });
-  })
-);
-
 app.post(
   "/api/admin/users/:id/verification",
   authRequired,
@@ -2571,6 +1735,7 @@ app.get(
       items: rows.map((row) => ({
         ...row,
         images: normalizeList(row.images_json),
+        videos: normalizeList(row.videos_json),
         deliveryOptions: normalizeList(row.delivery_options_json),
         donationAvailable: !!row.donation_available,
       })),
@@ -2617,12 +1782,14 @@ app.get(
       item: {
         ...row,
         images: normalizeList(row.images_json),
+        videos: normalizeList(row.videos_json),
         deliveryOptions: normalizeList(row.delivery_options_json),
         donationAvailable: !!row.donation_available,
       },
       related: relatedRows.map((related) => ({
         ...related,
         images: normalizeList(related.images_json),
+        videos: normalizeList(related.videos_json),
         deliveryOptions: normalizeList(related.delivery_options_json),
         donationAvailable: !!related.donation_available,
       })),
@@ -2643,6 +1810,7 @@ app.post(
       conditionStatus,
       pickupWindows,
       images,
+      videos,
       deliveryOptions,
       donationAvailable,
     } = req.body;
@@ -2654,10 +1822,12 @@ app.post(
       return res.status(400).json({ error: "Price must be zero or higher." });
     }
 
+    const media = validateItemMedia({ images, videos });
+
     const [result] = await pool.execute(
       `INSERT INTO items
-        (seller_id, title, description, category, location, price, condition_status, pickup_windows, images_json, delivery_options_json, donation_available)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (seller_id, title, description, category, location, price, condition_status, pickup_windows, images_json, videos_json, delivery_options_json, donation_available)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         req.user.id,
         title,
@@ -2667,7 +1837,8 @@ app.post(
         Number(price),
         conditionStatus,
         pickupWindows || "",
-        JSON.stringify(normalizeList(images)),
+        JSON.stringify(media.images),
+        JSON.stringify(media.videos),
         JSON.stringify(normalizeList(deliveryOptions)),
         donationAvailable ? 1 : 0,
       ]
@@ -2675,24 +1846,6 @@ app.post(
 
     await logUserActivity(req, req.user.id, "item_create", "item", result.insertId, { category, price: Number(price) });
     res.status(201).json({ id: result.insertId });
-  })
-);
-
-// DELETE /api/items/:id — owner or admin only
-app.delete(
-  "/api/items/:id",
-  authRequired,
-  asyncHandler(async (req, res) => {
-    const itemId = Number(req.params.id);
-    const userId = req.user.id;
-    const isAdmin = req.user.isAdmin;
-    const [[item]] = await pool.query("SELECT id, seller_id FROM items WHERE id = ?", [itemId]);
-    if (!item) return res.status(404).json({ error: "Item not found." });
-    if (Number(item.seller_id) !== userId && !isAdmin) {
-      return res.status(403).json({ error: "Only the seller or admin can delete this item." });
-    }
-    await pool.query("DELETE FROM items WHERE id = ?", [itemId]);
-    res.json({ success: true });
   })
 );
 
@@ -2725,8 +1878,6 @@ app.post(
     await pool.execute("UPDATE items SET status = 'reserved' WHERE id = ?", [itemId]);
     await createNotification(item.seller_id, "pickup-booked", `Pickup requested for "${item.title}" on ${pickupTime}.`);
     await createNotification(req.user.id, "pickup-confirmed", `Reservation placed for "${item.title}".`);
-    await notifyAdmins("ops-request", `${req.user.full_name} reserved "${item.title}" for ${pickupTime}.`, req.user.id);
-    await logUserActivity(req, req.user.id, "reservation_create", "reservation", result.insertId, { itemId: Number(itemId) });
 
     res.status(201).json({ id: result.insertId });
   })
@@ -2843,7 +1994,6 @@ app.get(
   asyncHandler(async (req, res) => {
     const conversationId = Number(req.params.id);
     const afterId = Number(req.query.afterId || 0);
-    const beforeId = Number(req.query.beforeId || 0);
     const [conversations] = await pool.execute("SELECT * FROM conversations WHERE id = ? LIMIT 1", [conversationId]);
     const conversation = conversations[0];
     if (!conversation) return res.status(404).json({ error: "Conversation not found." });
@@ -2851,36 +2001,18 @@ app.get(
       return res.status(403).json({ error: "Not allowed." });
     }
 
-    let messages = [];
-    if (beforeId > 0) {
-      const [olderRows] = await pool.execute(
-        `SELECT
-           m.*,
-           u.full_name AS sender_name,
-           u.avatar_url AS sender_avatar_url
-         FROM conversation_messages m
-         JOIN users u ON u.id = m.sender_id
-         WHERE m.conversation_id = ? AND m.id < ?
-         ORDER BY m.id DESC
-         LIMIT 200`,
-        [conversationId, beforeId]
-      );
-      messages = olderRows.reverse();
-    } else {
-      const [newerRows] = await pool.execute(
-        `SELECT
-           m.*,
-           u.full_name AS sender_name,
-           u.avatar_url AS sender_avatar_url
-         FROM conversation_messages m
-         JOIN users u ON u.id = m.sender_id
-         WHERE m.conversation_id = ? AND m.id > ?
-         ORDER BY m.id ASC
-         LIMIT 200`,
-        [conversationId, afterId]
-      );
-      messages = newerRows;
-    }
+    const [messages] = await pool.execute(
+      `SELECT
+         m.*,
+         u.full_name AS sender_name,
+         u.avatar_url AS sender_avatar_url
+       FROM conversation_messages m
+       JOIN users u ON u.id = m.sender_id
+       WHERE m.conversation_id = ? AND m.id > ?
+       ORDER BY m.id ASC
+       LIMIT 200`,
+      [conversationId, afterId]
+    );
 
     await pool.execute(
       `UPDATE conversation_messages
@@ -2901,6 +2033,24 @@ app.get(
         readAt: message.read_at,
       })),
     });
+  })
+);
+
+app.delete(
+  "/api/chats/:id",
+  authRequired,
+  asyncHandler(async (req, res) => {
+    const conversationId = Number(req.params.id);
+    const [conversations] = await pool.execute("SELECT * FROM conversations WHERE id = ? LIMIT 1", [conversationId]);
+    const conversation = conversations[0];
+    if (!conversation) return res.status(404).json({ error: "Conversation not found." });
+    if (![conversation.buyer_id, conversation.seller_id].includes(req.user.id)) {
+      return res.status(403).json({ error: "Not allowed." });
+    }
+
+    await pool.execute("DELETE FROM conversations WHERE id = ?", [conversationId]);
+    await logUserActivity(req, req.user.id, "chat_delete", "conversation", conversationId, { itemId: conversation.item_id });
+    res.json({ ok: true });
   })
 );
 
@@ -2956,24 +2106,6 @@ app.post(
       imageUrl,
       createdAt: new Date().toISOString(),
     });
-  })
-);
-
-app.delete(
-  "/api/chats/:id",
-  authRequired,
-  asyncHandler(async (req, res) => {
-    const conversationId = Number(req.params.id);
-    const [conversations] = await pool.execute("SELECT * FROM conversations WHERE id = ? LIMIT 1", [conversationId]);
-    const conversation = conversations[0];
-    if (!conversation) return res.status(404).json({ error: "Conversation not found." });
-    if (![conversation.buyer_id, conversation.seller_id].includes(req.user.id)) {
-      return res.status(403).json({ error: "Not allowed." });
-    }
-
-    await pool.execute("DELETE FROM conversations WHERE id = ?", [conversationId]);
-    await logUserActivity(req, req.user.id, "chat_delete", "conversation", conversationId, {});
-    res.json({ ok: true });
   })
 );
 
@@ -3056,15 +2188,6 @@ app.post(
     );
 
     await createNotification(req.user.id, "delivery", `Delivery request submitted. Estimated fee: NZ$${feeEstimate}.`);
-    await notifyAdmins(
-      "ops-request",
-      `${req.user.full_name} requested ${deliveryType} delivery from ${fromLocation} to ${toLocation}.`,
-      req.user.id
-    );
-    await logUserActivity(req, req.user.id, "delivery_request_create", "delivery_request", result.insertId, {
-      itemId: itemId ? Number(itemId) : null,
-      deliveryType,
-    });
     res.status(201).json({ id: result.insertId, feeEstimate });
   })
 );
@@ -3083,11 +2206,6 @@ app.post(
       [itemId || null, req.user.id, serviceType, notes || ""]
     );
     await createNotification(req.user.id, "service", `${serviceType} request submitted.`);
-    await notifyAdmins("ops-request", `${req.user.full_name} requested ${serviceType} service.`, req.user.id);
-    await logUserActivity(req, req.user.id, "service_request_create", "service_request", result.insertId, {
-      itemId: itemId ? Number(itemId) : null,
-      serviceType,
-    });
     res.status(201).json({ id: result.insertId });
   })
 );
@@ -3138,11 +2256,6 @@ app.post(
     }
 
     await createNotification(req.user.id, "donation", `Donation request submitted to ${orgName}.`);
-    await notifyAdmins("ops-request", `${req.user.full_name} submitted a donation request to ${orgName}.`, req.user.id);
-    await logUserActivity(req, req.user.id, "donation_request_create", "donation", result.insertId, {
-      itemId: itemId ? Number(itemId) : null,
-      orgName,
-    });
     res.status(201).json({ id: result.insertId });
   })
 );
@@ -3223,6 +2336,7 @@ app.get(
       items: items.map((row) => ({
         ...row,
         images: normalizeList(row.images_json),
+        videos: normalizeList(row.videos_json),
         deliveryOptions: normalizeList(row.delivery_options_json),
         donationAvailable: !!row.donation_available,
       })),
@@ -3233,7 +2347,6 @@ app.get(
 app.post(
   "/api/opportunities",
   authRequired,
-  adminRequired,
   asyncHandler(async (req, res) => {
     const { title, orgName, opportunityType, location, skills, summary, applyUrl } = req.body;
     if (!title || !orgName || !opportunityType || !location || !summary) {
@@ -3245,54 +2358,6 @@ app.post(
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [title, orgName, opportunityType, location, JSON.stringify(normalizeList(skills)), summary, applyUrl || "", req.user.id]
     );
-    await notifyAdmins("job-post", `${req.user.full_name} posted a new opportunity: ${title}.`, req.user.id);
-    await logUserActivity(req, req.user.id, "opportunity_create", "opportunity", result.insertId, { opportunityType, orgName });
-    res.status(201).json({ id: result.insertId });
-  })
-);
-
-app.post(
-  "/api/opportunity-applications",
-  authRequired,
-  asyncHandler(async (req, res) => {
-    const opportunityId = Number(req.body.opportunityId);
-    const applicantName = cleanText(req.body.applicantName, 180) || cleanText(req.user.full_name, 180);
-    const applicantEmail = String(req.body.applicantEmail || req.user.email || "").trim().toLowerCase();
-    const applicantPhone = cleanText(req.body.applicantPhone, 80);
-    const coverMessage = cleanText(req.body.coverMessage, 4000);
-    const cvUrl = cleanText(req.body.cvUrl, 2000);
-
-    if (!opportunityId || !applicantName || !applicantEmail) {
-      return res.status(400).json({ error: "Opportunity, name, and email are required." });
-    }
-    if (!isValidEmail(applicantEmail)) {
-      return res.status(400).json({ error: "A valid email is required." });
-    }
-
-    const [opportunityRows] = await pool.execute("SELECT id, title, org_name FROM opportunities WHERE id = ? LIMIT 1", [opportunityId]);
-    const opportunity = opportunityRows[0];
-    if (!opportunity) {
-      return res.status(404).json({ error: "Opportunity not found." });
-    }
-
-    const [result] = await pool.execute(
-      `INSERT INTO opportunity_applications
-        (opportunity_id, user_id, applicant_name, applicant_email, applicant_phone, cover_message, cv_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [opportunityId, req.user.id, applicantName, applicantEmail, applicantPhone || "", coverMessage || "", cvUrl || ""]
-    );
-
-    await createNotification(req.user.id, "job-application", `Application submitted for "${opportunity.title}".`);
-    await notifyAdmins(
-      "job-application",
-      `${applicantName} applied for "${opportunity.title}" at ${opportunity.org_name}.`,
-      req.user.id
-    );
-    await logUserActivity(req, req.user.id, "opportunity_application_create", "opportunity_application", result.insertId, {
-      opportunityId,
-      hasCv: !!cvUrl,
-    });
-
     res.status(201).json({ id: result.insertId });
   })
 );
@@ -3306,10 +2371,6 @@ const pageRoutes = {
   "/register": "register.html",
   "/forgot-password": "forgot-password.html",
   "/reset-password": "reset-password.html",
-  "/help": "help.html",
-  "/privacy": "privacy.html",
-  "/terms": "terms.html",
-  "/trust": "trust.html",
   "/item": "item.html",
   "/dashboard": "dashboard.html",
   "/sell": "sell.html",
@@ -3321,54 +2382,9 @@ const pageRoutes = {
   "/admin/verifications": "admin-verifications.html",
 };
 
-const sitemapRoutes = [
-  "/",
-  "/marketplace",
-  "/services",
-  "/opportunities",
-  "/community",
-  "/help",
-  "/trust",
-  "/privacy",
-  "/terms",
-];
-
-app.get("/robots.txt", (_req, res) => {
-  res.type("text/plain").send(
-    [
-      "User-agent: *",
-      "Allow: /",
-      "Disallow: /api/",
-      "Disallow: /admin",
-      "Disallow: /dashboard",
-      "Disallow: /chat",
-      "Disallow: /login",
-      "Disallow: /register",
-      "Disallow: /forgot-password",
-      "Disallow: /reset-password",
-      `Sitemap: ${buildAbsoluteUrl("/sitemap.xml")}`,
-    ].join("\n")
-  );
-});
-
-app.get("/sitemap.xml", (_req, res) => {
-  const now = new Date().toISOString();
-  const xml = [
-    '<?xml version="1.0" encoding="UTF-8"?>',
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-    ...sitemapRoutes.map((route) => `  <url><loc>${buildAbsoluteUrl(route)}</loc><lastmod>${now}</lastmod></url>`),
-    "</urlset>",
-  ].join("\n");
-  res.type("application/xml").send(xml);
-});
-
-app.get("/favicon.ico", (_req, res) => {
-  sendPublicPage(res, "favicon.svg");
-});
-
 for (const [route, file] of Object.entries(pageRoutes)) {
   app.get(route, (_req, res) => {
-    sendPublicPage(res, file);
+    res.sendFile(path.join(__dirname, "public", file));
   });
 }
 
@@ -3402,35 +2418,49 @@ app.get("/api/jobs", (req, res) => {
   const jobs = parseJobsFile();
   const filtered = filterJobs(jobs, req.query || {});
   res.json({
-    jobs: enrichJobs(filtered.jobs),
+    jobs: filtered.jobs,
     total: filtered.total,
     source: "greenloop-bound-cache",
   });
 });
 
-app.post(
-  "/api/jobs/match",
-  asyncHandler(async (req, res) => {
-    const cvUrl = cleanText(req.body.cvUrl, 2000);
-    if (!cvUrl) {
-      return res.status(400).json({ error: "Upload a PDF resume first." });
-    }
+app.post("/api/jobs/match", asyncHandler(async (req, res) => {
+  const cvUrl = cleanText(req.body.cvUrl, 2000);
+  if (!cvUrl || !cvUrl.startsWith("/uploads/")) {
+    return res.status(400).json({ error: "Valid uploaded resume is required." });
+  }
 
-    const resumeText = await extractResumeText(cvUrl);
-    const jobs = parseJobsFile();
-    const filtered = filterJobs(jobs, req.body || req.query || {});
-    const ranked = sortJobsByResumeMatch(filtered.jobs, resumeText);
+  const resumePath = path.join(uploadsDir, path.basename(cvUrl));
+  if (!fs.existsSync(resumePath)) {
+    return res.status(404).json({ error: "Uploaded resume could not be found." });
+  }
 
-    res.json({
-      jobs: ranked.jobs,
-      total: filtered.total,
-      source: "greenloop-resume-match",
-      resumePreview: resumeText.slice(0, 280),
-      resumeSuggestions: ranked.resumeSuggestions,
-      resumeSignals: ranked.resumeSignals,
-    });
-  })
-);
+  const resumeText = extractResumeText(resumePath);
+  if (!resumeText || resumeText.length < 20) {
+    return res.status(400).json({ error: "Could not read enough text from the PDF resume." });
+  }
+
+  const jobs = parseJobsFile();
+  const filtered = filterJobs(jobs, req.body || {});
+  const resumeSignals = collectResumeSignals(resumeText);
+  const tokenStats = buildTokenStats(filtered.jobs);
+  const ranked = filtered.jobs
+    .map((job) => buildJobMatch(job, resumeText, resumeSignals, tokenStats))
+    .sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
+
+  const resumeSuggestions = [];
+  if (!(resumeSignals.skills || []).length) resumeSuggestions.push("Add a short skills section with concrete technologies.");
+  if (!(resumeSignals.projects || []).length) resumeSuggestions.push("Name your strongest shipped projects explicitly in the resume.");
+  if (!(resumeSignals.domains || []).length) resumeSuggestions.push("Use domain keywords like full-stack, backend, deployment, and automation.");
+  if (!resumeSuggestions.length) resumeSuggestions.push("Resume signals look strong. Keep emphasizing shipped work and measurable outcomes.");
+
+  res.json({
+    jobs: ranked,
+    total: filtered.total,
+    resumeSuggestions,
+    resumeSignals,
+  });
+}));
 
 app.post("/api/jobs/refresh", (_req, res) => {
   const result = triggerJobsRefresh();
@@ -3445,25 +2475,19 @@ app.get("/api/stats", (_req, res) => {
   const workTypes = {};
   const locations = {};
   const companies = {};
-  const categories = {};
 
   for (const job of jobs) {
     const type = job.workType || "unknown";
     const location = job.location || "unknown";
     const company = job.company || "unknown";
-    const category = classifyJobCategory(job).categoryLabel;
     workTypes[type] = (workTypes[type] || 0) + 1;
     locations[location] = (locations[location] || 0) + 1;
     companies[company] = (companies[company] || 0) + 1;
-    categories[category] = (categories[category] || 0) + 1;
   }
 
   res.json({
     total: jobs.length,
     work_types: workTypes,
-    categories: Object.entries(categories)
-      .sort((a, b) => b[1] - a[1])
-      .map(([label, count]) => ({ label, count })),
     top_locations: Object.entries(locations)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
@@ -3475,14 +2499,8 @@ app.get("/api/stats", (_req, res) => {
   });
 });
 
-app.use((req, res) => {
-  if (req.path.startsWith("/api/")) {
-    return res.status(404).json({ error: "Route not found." });
-  }
-  if ((req.method === "GET" || req.method === "HEAD") && !path.extname(req.path)) {
-    return sendPublicPage(res, "404.html", 404);
-  }
-  return res.status(404).type("text/plain").send("Not found.");
+app.get("*", (_req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 app.use((err, _req, res, _next) => {
@@ -3492,7 +2510,6 @@ app.use((err, _req, res, _next) => {
 
 ensureSchema()
   .then(() => {
-    scheduleJobsRefresh();
     app.listen(PORT, () => {
       console.log(`GreenLoop running on http://0.0.0.0:${PORT}`);
     });

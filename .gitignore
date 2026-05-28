@@ -1,5 +1,12 @@
 node_modules
 .env
+.env.bak-*
 uploads/*
 !uploads/.gitkeep
 npm-debug.log*
+*.log
+backup-*/
+backups/
+test-marker.txt
+auth-register.js
+register.html

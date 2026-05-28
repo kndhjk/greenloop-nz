@@ -14,11 +14,79 @@
       border-bottom: 2px solid #e4393c;
       padding: 40px 32px 32px;
     }
-    .jobs-hero h1 { font-size: 32px; font-weight: 900; color: #333; letter-spacing: -0.02em; margin: 0 0 8px; }
-    .jobs-hero p { color: #666; font-size: 14px; margin: 0; }
-    .stats-row { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 16px; }
-    .stat-badge strong { font-size: 20px; font-weight: 900; color: #e4393c; }
-    .stat-badge span { font-size: 11px; color: #999; font-weight: 600; text-transform: uppercase; }
+    .jobs-hero-shell {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(300px, 440px);
+      gap: 28px;
+      align-items: end;
+    }
+    .jobs-hero-copy {
+      min-width: 0;
+      display: grid;
+      gap: 10px;
+    }
+    .jobs-hero-eyebrow {
+      color: #e4393c;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin: 0;
+    }
+    .jobs-hero h1 {
+      font-size: clamp(30px, 4vw, 42px);
+      font-weight: 900;
+      color: #333;
+      letter-spacing: -0.03em;
+      line-height: 1.02;
+      margin: 0;
+      max-width: 12ch;
+      text-wrap: balance;
+    }
+    .jobs-hero p {
+      color: #666;
+      font-size: 15px;
+      line-height: 1.6;
+      margin: 0;
+      max-width: 60ch;
+    }
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      align-self: stretch;
+    }
+    .stat-badge {
+      display: grid;
+      align-content: start;
+      gap: 6px;
+      min-width: 0;
+      padding: 16px 18px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.86);
+      border: 1px solid rgba(228,57,60,0.14);
+      box-shadow: 0 10px 26px rgba(228,57,60,0.08);
+    }
+    .stat-badge strong {
+      display: block;
+      font-size: clamp(28px, 3vw, 36px);
+      line-height: 1;
+      font-weight: 900;
+      color: #e4393c;
+      white-space: nowrap;
+    }
+    .stat-badge span {
+      display: block;
+      font-size: 11px;
+      line-height: 1.45;
+      color: #777;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      word-break: break-word;
+    }
 
     /* Search bar */
     .search-bar {
@@ -283,12 +351,17 @@
       .search-bar { padding: 14px 16px; }
       .jobs-main { padding: 16px 16px 40px; }
       .jobs-hero { padding: 28px 16px 20px; }
+      .jobs-hero-shell { grid-template-columns: 1fr; gap: 16px; }
+      .stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .resume-match-panel { grid-template-columns: 1fr; padding: 18px; }
       .resume-match-buttons { grid-template-columns: 1fr; }
       .gl-card { flex-direction: column; }
     }
     @media (max-width: 680px) {
-      .jobs-hero h1 { font-size: 28px; }
+      .jobs-hero h1 { max-width: none; }
+      .jobs-hero p { font-size: 14px; }
+      .stats-row { grid-template-columns: 1fr; }
+      .stat-badge { padding: 14px 16px; }
       .search-bar {
         display: grid;
         grid-template-columns: 1fr;
@@ -334,12 +407,22 @@
 
   <main>
     <section class="jobs-hero">
-      <p style="color:#e4393c;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;margin:0 0 6px">Student work & opportunities</p>
-      <h1>Find your next role</h1>
-      <p>Student opportunities from campus organizations + all NZ jobs from Seek.</p>
-      <div class="stats-row">
-        <div class="stat-badge"><strong id="gl-count">—</strong><span>GreenLoop listings</span></div>
-        <div class="stat-badge"><strong id="seek-count">—</strong><span>Seek NZ jobs</span></div>
+      <div class="jobs-hero-shell">
+        <div class="jobs-hero-copy">
+          <p class="jobs-hero-eyebrow">Student work & opportunities</p>
+          <h1>Find your next role</h1>
+          <p>Student opportunities from campus organizations and the wider NZ jobs market, in one place.</p>
+        </div>
+        <div class="stats-row" aria-label="Opportunity counts">
+          <div class="stat-badge">
+            <strong id="gl-count">—</strong>
+            <span>GreenLoop listings</span>
+          </div>
+          <div class="stat-badge">
+            <strong id="seek-count">—</strong>
+            <span>Seek NZ jobs</span>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -533,6 +616,8 @@
       if (signals?.education?.length) signalBits.push(`Study: ${signals.education.slice(0, 2).join(', ')}`);
       if (signals?.domains?.length) signalBits.push(`Background: ${signals.domains.slice(0, 2).join(', ')}`);
       if (signals?.skills?.length) signalBits.push(`Tools: ${signals.skills.slice(0, 3).join(', ')}`);
+      if (signals?.roleFamilies?.length) signalBits.push(`Role families: ${signals.roleFamilies.slice(0, 2).map(item => item.label).join(', ')}`);
+      if (signals?.locations?.length) signalBits.push(`Locations: ${signals.locations.slice(0, 2).map(item => item.label).join(', ')}`);
       const items = [...signalBits, ...(Array.isArray(list) ? list : [])];
       if (!items.length) {
         root.classList.add('hidden');
@@ -564,6 +649,14 @@
           <div class="match-detail-tags">${renderDetailTags((d.matchedDomains || []).map(item => item.label), 'good')}</div>
         </div>
         <div class="match-detail-block">
+          <h4>Matched role families</h4>
+          <div class="match-detail-tags">${renderDetailTags((d.matchedRoleFamilies || []).map(item => item.label), 'good')}</div>
+        </div>
+        <div class="match-detail-block">
+          <h4>Matched location signals</h4>
+          <div class="match-detail-tags">${renderDetailTags((d.matchedLocations || []).map(item => item.label), 'good')}</div>
+        </div>
+        <div class="match-detail-block">
           <h4>Matched study / major signals</h4>
           <div class="match-detail-tags">${renderDetailTags((d.matchedEducation || []).map(item => item.label), 'good')}</div>
         </div>
@@ -576,8 +669,26 @@
           <div class="match-detail-tags">${renderDetailTags((d.matchedSkills || []).map(item => item.label), 'good')}</div>
         </div>
         <div class="match-detail-block">
+          <h4>Lexical fit by field</h4>
+          <div class="match-detail-tags">${renderDetailTags([
+            d.lexicalFit?.title?.matchedTokens?.length ? `Title: ${d.lexicalFit.title.matchedTokens.slice(0, 3).join(', ')}` : '',
+            d.lexicalFit?.company?.matchedTokens?.length ? `Company: ${d.lexicalFit.company.matchedTokens.slice(0, 2).join(', ')}` : '',
+            d.lexicalFit?.description?.matchedTokens?.length ? `Description: ${d.lexicalFit.description.matchedTokens.slice(0, 4).join(', ')}` : '',
+            d.lexicalFit?.location?.matchedTokens?.length ? `Location: ${d.lexicalFit.location.matchedTokens.slice(0, 3).join(', ')}` : '',
+          ].filter(Boolean), 'good')}</div>
+        </div>
+        <div class="match-detail-block">
+          <h4>Job structure detected</h4>
+          <div class="match-detail-tags">${renderDetailTags([]
+            .concat((d.jobLocations || []).map(item => item.label))
+            .concat((d.jobRoleFamilies || []).map(item => item.label))
+            .concat((d.jobSeniority || []).map(item => item.label))
+            .concat((d.jobWorkStyles || []).map(item => item.label))
+            .slice(0, 8), 'good')}</div>
+        </div>
+        <div class="match-detail-block">
           <h4>What would improve this match</h4>
-          <div class="match-detail-tags">${renderDetailTags((d.missingSkills || []).concat(d.missingDomains || []).concat(d.missingProjects || []).slice(0, 6).map(item => item.label), 'miss')}</div>
+          <div class="match-detail-tags">${renderDetailTags((d.missingSkills || []).concat(d.missingDomains || []).concat(d.missingProjects || []).concat(d.missingRoleFamilies || []).slice(0, 8).map(item => item.label), 'miss')}</div>
         </div>
         <div class="match-detail-block">
           <h4>Resume optimization suggestions</h4>

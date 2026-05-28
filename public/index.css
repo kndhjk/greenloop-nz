@@ -60,13 +60,19 @@
 
 .carousel-track {
   display: flex;
+  transform: translate3d(0, 0, 0);
   transition: transform 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .carousel-slide {
   min-width: 100%;
   position: relative;
   min-height: 420px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .carousel-img {
@@ -76,6 +82,8 @@
   background-position: center;
   transform-origin: center;
   transition: transform 0.5s ease;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .carousel-slide:hover .carousel-img {
@@ -430,6 +438,14 @@
 
   .carousel-slide {
     min-height: 320px;
+  }
+
+  .carousel-track {
+    transition-duration: 0.32s;
+  }
+
+  .carousel-slide:hover .carousel-img {
+    transform: none;
   }
 
   .carousel-overlay {

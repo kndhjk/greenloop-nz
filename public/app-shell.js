@@ -7,90 +7,20 @@ const GreenLoop = (() => {
   const $ = (selector) => document.querySelector(selector);
   let fabMounted = false;
   let dockMounted = false;
+  let lightboxMounted = false;
+  const lightboxState = {
+    scale: 1,
+    translateX: 0,
+    translateY: 0,
+    startX: 0,
+    startY: 0,
+    originX: 0,
+    originY: 0,
+    dragging: false,
+    lastTapAt: 0,
+  };
 
   const shellPages = new Set(["home", "marketplace", "sell", "services", "opportunities", "chat", "community"]);
-  const pageMeta = {
-    home: {
-      title: "GreenLoop NZ | Student Marketplace, Services, and Jobs",
-      description: "GreenLoop is a student-first platform for buying, selling, logistics help, and campus job discovery in one flow.",
-    },
-    marketplace: {
-      title: "Marketplace | GreenLoop NZ",
-      description: "Browse student listings with clearer trust, condition, pickup, and price signals.",
-    },
-    sell: {
-      title: "Sell | GreenLoop NZ",
-      description: "Publish a student listing with structured details, delivery options, and pickup windows.",
-    },
-    services: {
-      title: "Services | GreenLoop NZ",
-      description: "Book pickup, delivery, cleaning, repair, or donation support around marketplace activity.",
-    },
-    opportunities: {
-      title: "Jobs | GreenLoop NZ",
-      description: "Discover student-friendly roles, internships, and campus opportunities without leaving GreenLoop.",
-    },
-    community: {
-      title: "Community | GreenLoop NZ",
-      description: "Follow the campus feed, post updates, and keep marketplace activity connected to student community signals.",
-    },
-    chat: {
-      title: "Chat | GreenLoop NZ",
-      description: "Manage buyer-seller conversations and listing handoffs from the GreenLoop inbox.",
-    },
-    item: {
-      title: "Item Detail | GreenLoop NZ",
-      description: "Review listing details, seller trust, and service handoff options before you commit.",
-    },
-    seller: {
-      title: "Seller Profile | GreenLoop NZ",
-      description: "See seller details, active listings, and verification context before messaging or reserving.",
-    },
-    login: {
-      title: "Login | GreenLoop NZ",
-      description: "Sign in to manage listings, messages, support, and student account activity.",
-    },
-    register: {
-      title: "Register | GreenLoop NZ",
-      description: "Create a verified University of Auckland account for the GreenLoop marketplace.",
-    },
-    "forgot-password": {
-      title: "Forgot Password | GreenLoop NZ",
-      description: "Request a secure password reset for your GreenLoop account.",
-    },
-    "reset-password": {
-      title: "Reset Password | GreenLoop NZ",
-      description: "Set a new password for your GreenLoop account.",
-    },
-    help: {
-      title: "Help | GreenLoop NZ",
-      description: "Contact support, report safety issues, and ask for follow-up from the GreenLoop team.",
-    },
-    trust: {
-      title: "Trust & Safety | GreenLoop NZ",
-      description: "See how GreenLoop handles verification, moderation, uploads, and student safety signals.",
-    },
-    privacy: {
-      title: "Privacy | GreenLoop NZ",
-      description: "Understand what GreenLoop stores, why it stores it, and how support and moderation data is handled.",
-    },
-    terms: {
-      title: "Terms | GreenLoop NZ",
-      description: "Read the operating terms for listings, services, applications, and enforcement on GreenLoop.",
-    },
-    dashboard: {
-      title: "Dashboard | GreenLoop NZ",
-      description: "Manage your GreenLoop account, listings, reservations, notifications, and memberships.",
-    },
-    admin: {
-      title: "Admin | GreenLoop NZ",
-      description: "Operate moderation, support, listings, and operational workflows from the GreenLoop admin surface.",
-    },
-    "not-found": {
-      title: "Page Not Found | GreenLoop NZ",
-      description: "The requested GreenLoop page could not be found. Return to marketplace, services, jobs, or support.",
-    },
-  };
 
   const brandMark = `
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -226,287 +156,6 @@ const GreenLoop = (() => {
     document.body.appendChild(dock);
   };
 
-  const ensureGlobalFooter = () => {
-    if (document.querySelector(".site-footer")) return;
-    const footer = document.createElement("footer");
-    footer.className = "site-footer";
-    footer.innerHTML = `
-      <div class="site-footer-inner">
-        <div class="site-footer-brand">
-          <strong>GreenLoop NZ</strong>
-          <span>Student marketplace, logistics, jobs, and support in one flow.</span>
-        </div>
-        <nav class="site-footer-links" aria-label="Site links">
-          <a href="/help">Help</a>
-          <a href="/trust">Trust & Safety</a>
-          <a href="/privacy">Privacy</a>
-          <a href="/terms">Terms</a>
-        </nav>
-      </div>
-    `;
-    document.body.appendChild(footer);
-  };
-
-  const ensureAdminShortcut = () => {
-    let shortcut = document.getElementById("admin-shortcut");
-    if (!shortcut) {
-      shortcut = document.createElement("a");
-      shortcut.id = "admin-shortcut";
-      shortcut.className = "admin-shortcut hidden";
-      shortcut.href = "/admin";
-      shortcut.setAttribute("aria-label", "Open admin control");
-      document.body.appendChild(shortcut);
-    }
-    shortcut.innerHTML = `
-      <span class="admin-shortcut-kicker">Admin</span>
-      <strong>${window.location.pathname === "/admin" ? "Control live" : "Open control"}</strong>
-    `;
-    shortcut.classList.toggle("hidden", !state.user?.isAdmin);
-    shortcut.classList.toggle("admin-shortcut-on-admin", window.location.pathname === "/admin");
-  };
-
-  const ensureAdminDrawer = () => {
-    if (!state.user?.isAdmin || window.location.pathname === "/admin") {
-      document.body.classList.remove("admin-console-drawer-open");
-      document.getElementById("global-admin-drawer-toggle")?.remove();
-      document.getElementById("global-admin-drawer-backdrop")?.remove();
-      document.getElementById("global-admin-drawer")?.remove();
-      return;
-    }
-
-    if (!document.getElementById("global-admin-drawer-style")) {
-      const style = document.createElement("style");
-      style.id = "global-admin-drawer-style";
-      style.textContent = `
-        .global-admin-drawer-toggle {
-          position: fixed;
-          left: 14px;
-          top: 96px;
-          z-index: 66;
-          border: none;
-          border-radius: 999px;
-          padding: 12px 14px;
-          color: #fff;
-          cursor: pointer;
-          background: linear-gradient(135deg, #7f1d1d, #b45309);
-          box-shadow: 0 18px 36px rgba(127, 29, 29, 0.24);
-        }
-        .global-admin-drawer-backdrop {
-          position: fixed;
-          inset: 0;
-          z-index: 72;
-          background: rgba(15, 23, 42, 0.24);
-          opacity: 0;
-          pointer-events: none;
-          transition: opacity .18s ease;
-        }
-        body.admin-console-drawer-open .global-admin-drawer-backdrop {
-          opacity: 1;
-          pointer-events: auto;
-        }
-        .global-admin-drawer {
-          position: fixed;
-          top: 0;
-          left: 0;
-          z-index: 74;
-          width: min(320px, calc(100vw - 24px));
-          height: 100vh;
-          padding: 18px 16px 24px;
-          overflow: auto;
-          display: grid;
-          align-content: start;
-          gap: 16px;
-          background: rgba(255, 251, 244, 0.98);
-          border-right: 1px solid var(--line);
-          box-shadow: 0 24px 48px rgba(123, 79, 63, 0.18);
-          transform: translateX(-102%);
-          transition: transform .2s ease;
-        }
-        body.admin-console-drawer-open .global-admin-drawer {
-          transform: translateX(0);
-        }
-        .global-admin-drawer-head {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 16px;
-          padding-bottom: 12px;
-          border-bottom: 1px solid var(--line);
-        }
-        .global-admin-drawer-head h2 {
-          margin: 0 0 6px;
-          font-size: 20px;
-        }
-        .global-admin-drawer-copy {
-          margin: 0;
-          color: var(--muted);
-          font-size: 13px;
-          line-height: 1.5;
-        }
-        .global-admin-drawer-group {
-          display: grid;
-          gap: 10px;
-        }
-        .global-admin-drawer-group h3 {
-          margin: 0;
-          font-size: 12px;
-          text-transform: uppercase;
-          letter-spacing: .08em;
-          color: var(--muted);
-        }
-        .global-admin-drawer-link {
-          display: block;
-          text-decoration: none;
-          padding: 12px 14px;
-          border-radius: 14px;
-          border: 1px solid var(--line);
-          background: rgba(255, 247, 238, 0.9);
-          color: var(--ink);
-          font-weight: 700;
-        }
-        .global-admin-drawer-link span {
-          display: block;
-          margin-top: 4px;
-          font-size: 12px;
-          font-weight: 500;
-          color: var(--muted);
-        }
-        @media (max-width: 900px) {
-          .global-admin-drawer-toggle {
-            top: 84px;
-            left: 10px;
-          }
-        }
-      `;
-      document.head.appendChild(style);
-    }
-
-    let toggle = document.getElementById("global-admin-drawer-toggle");
-    let backdrop = document.getElementById("global-admin-drawer-backdrop");
-    let drawer = document.getElementById("global-admin-drawer");
-
-    if (!toggle) {
-      toggle = document.createElement("button");
-      toggle.id = "global-admin-drawer-toggle";
-      toggle.className = "global-admin-drawer-toggle";
-      toggle.type = "button";
-      toggle.textContent = "☰ Admin";
-      document.body.appendChild(toggle);
-    }
-    if (!backdrop) {
-      backdrop = document.createElement("div");
-      backdrop.id = "global-admin-drawer-backdrop";
-      backdrop.className = "global-admin-drawer-backdrop";
-      document.body.appendChild(backdrop);
-    }
-    if (!drawer) {
-      drawer = document.createElement("aside");
-      drawer.id = "global-admin-drawer";
-      drawer.className = "global-admin-drawer";
-      document.body.appendChild(drawer);
-    }
-
-    drawer.innerHTML = `
-      <div class="global-admin-drawer-head">
-        <div>
-          <h2>Admin Console</h2>
-          <p class="global-admin-drawer-copy">Open the full admin navigation from anywhere in the product.</p>
-        </div>
-        <button id="global-admin-drawer-close" class="ghost-button" type="button">Close</button>
-      </div>
-      <div class="global-admin-drawer-group">
-        <h3>Operations</h3>
-        <a class="global-admin-drawer-link" href="/admin"><strong>Admin overview</strong><span>Totals, queues, users, support, and verification</span></a>
-        <a class="global-admin-drawer-link" href="/admin#admin-users"><strong>Users</strong><span>Create, edit, and remove accounts</span></a>
-        <a class="global-admin-drawer-link" href="/admin#admin-verifications"><strong>Verification</strong><span>Approve or reject student verification</span></a>
-        <a class="global-admin-drawer-link" href="/admin#admin-ops"><strong>Ops requests</strong><span>Handle pickup, delivery, service, and donation workflows</span></a>
-        <a class="global-admin-drawer-link" href="/admin#admin-support"><strong>Support inbox</strong><span>Work through help, trust, and safety issues</span></a>
-        <a class="global-admin-drawer-link" href="/admin#admin-items"><strong>Listings</strong><span>Edit, remove, and correct marketplace items</span></a>
-        <a class="global-admin-drawer-link" href="/admin#admin-opportunities"><strong>Opportunities</strong><span>Create, update, and retire job posts</span></a>
-        <a class="global-admin-drawer-link" href="/admin#admin-applications"><strong>Applications</strong><span>Review, approve, reject, and update applications</span></a>
-      </div>
-      <div class="global-admin-drawer-group">
-        <h3>Live Product</h3>
-        <a class="global-admin-drawer-link" href="/dashboard"><strong>Dashboard</strong><span>Business-side view for an admin account</span></a>
-        <a class="global-admin-drawer-link" href="/marketplace"><strong>Marketplace</strong><span>Check buyer-facing cards and detail pages</span></a>
-        <a class="global-admin-drawer-link" href="/sell"><strong>Sell</strong><span>Check the listing creation flow</span></a>
-        <a class="global-admin-drawer-link" href="/services"><strong>Services</strong><span>Check the service request experience</span></a>
-        <a class="global-admin-drawer-link" href="/opportunities"><strong>Jobs</strong><span>Check the jobs page and application flow</span></a>
-        <a class="global-admin-drawer-link" href="/chat"><strong>Chat</strong><span>Check live buyer-seller conversations</span></a>
-        <a class="global-admin-drawer-link" href="/community"><strong>Community</strong><span>Check the live community feed</span></a>
-      </div>
-    `;
-
-    const openDrawer = () => document.body.classList.add("admin-console-drawer-open");
-    const closeDrawer = () => document.body.classList.remove("admin-console-drawer-open");
-
-    if (!toggle.dataset.bound) {
-      toggle.addEventListener("click", () => {
-        document.body.classList.toggle("admin-console-drawer-open");
-      });
-      toggle.dataset.bound = "1";
-    }
-    if (!backdrop.dataset.bound) {
-      backdrop.addEventListener("click", closeDrawer);
-      backdrop.dataset.bound = "1";
-    }
-    drawer.querySelector("#global-admin-drawer-close")?.addEventListener("click", closeDrawer);
-    drawer.querySelectorAll(".global-admin-drawer-link").forEach((link) => {
-      link.addEventListener("click", closeDrawer);
-    });
-    if (!document.body.dataset.adminDrawerEscBound) {
-      document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") closeDrawer();
-      });
-      document.body.dataset.adminDrawerEscBound = "1";
-    }
-  };
-
-  const upsertMeta = (name, content, attribute = "name") => {
-    let tag = document.head.querySelector(`meta[${attribute}="${name}"]`);
-    if (!tag) {
-      tag = document.createElement("meta");
-      tag.setAttribute(attribute, name);
-      document.head.appendChild(tag);
-    }
-    tag.setAttribute("content", content);
-  };
-
-  const upsertLink = (rel, href) => {
-    let tag = document.head.querySelector(`link[rel="${rel}"]`);
-    if (!tag) {
-      tag = document.createElement("link");
-      tag.setAttribute("rel", rel);
-      document.head.appendChild(tag);
-    }
-    tag.setAttribute("href", href);
-  };
-
-  const ensureDocumentMeta = () => {
-    const pageKey = document.body?.dataset?.page || "home";
-    const meta = pageMeta[pageKey] || pageMeta.home;
-    const allowCanonicalSearch = new Set(["item", "seller", "marketplace", "opportunities"]);
-    const url = `${window.location.origin}${window.location.pathname}${allowCanonicalSearch.has(pageKey) ? window.location.search : ""}`;
-    const title = meta.title || document.title || "GreenLoop NZ";
-    const description = meta.description || pageMeta.home.description;
-
-    if (!(pageKey === "chat" && /^\(\d+\)/.test(document.title))) {
-      document.title = title;
-    }
-
-    upsertMeta("description", description);
-    upsertMeta("theme-color", "#14532d");
-    upsertMeta("og:title", title, "property");
-    upsertMeta("og:description", description, "property");
-    upsertMeta("og:type", "website", "property");
-    upsertMeta("og:url", url, "property");
-    upsertMeta("twitter:card", "summary_large_image");
-
-    upsertLink("canonical", url);
-    upsertLink("icon", "/favicon.svg");
-    upsertLink("manifest", "/site.webmanifest");
-  };
-
   const fallbackImageMap = {
     furniture:
       "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80",
@@ -534,6 +183,11 @@ const GreenLoop = (() => {
   const getListingImage = (item) => {
     const primary = Array.isArray(item.images) ? item.images[0] : "";
     return primary || getFallbackImage(item);
+  };
+
+  const getListingVideo = (item) => {
+    const primary = Array.isArray(item.videos) ? item.videos[0] : "";
+    return primary || "";
   };
 
   const escapeHtml = (value) =>
@@ -564,7 +218,146 @@ const GreenLoop = (() => {
     }, 3200);
   };
 
+  const ensureLightbox = () => {
+    if (lightboxMounted) return;
+    lightboxMounted = true;
+    const wrapper = document.createElement("div");
+    wrapper.id = "image-lightbox";
+    wrapper.className = "image-lightbox hidden";
+    wrapper.innerHTML = `
+      <div class="image-lightbox-shell" role="dialog" aria-modal="true" aria-label="Image viewer">
+        <div class="image-lightbox-toolbar">
+          <button id="image-lightbox-close" class="image-lightbox-btn" type="button" aria-label="Close image viewer">Close</button>
+          <div class="image-lightbox-toolbar-group">
+            <button id="image-lightbox-zoom-out" class="image-lightbox-btn" type="button" aria-label="Zoom out">-</button>
+            <button id="image-lightbox-reset" class="image-lightbox-btn" type="button" aria-label="Reset zoom">100%</button>
+            <button id="image-lightbox-zoom-in" class="image-lightbox-btn" type="button" aria-label="Zoom in">+</button>
+          </div>
+        </div>
+        <div id="image-lightbox-stage" class="image-lightbox-stage">
+          <img id="image-lightbox-img" class="image-lightbox-img" alt="" />
+        </div>
+      </div>
+    `;
+    document.body.appendChild(wrapper);
+
+    const close = () => {
+      wrapper.classList.add("hidden");
+      wrapper.setAttribute("aria-hidden", "true");
+      document.body.classList.remove("image-lightbox-open");
+      const image = document.getElementById("image-lightbox-img");
+      if (image) {
+        image.removeAttribute("src");
+      }
+      lightboxState.scale = 1;
+      lightboxState.translateX = 0;
+      lightboxState.translateY = 0;
+      lightboxState.dragging = false;
+    };
+
+    const applyTransform = () => {
+      const image = document.getElementById("image-lightbox-img");
+      if (!image) return;
+      image.style.transform = `translate3d(${lightboxState.translateX}px, ${lightboxState.translateY}px, 0) scale(${lightboxState.scale})`;
+    };
+
+    const setScale = (nextScale) => {
+      lightboxState.scale = Math.min(4, Math.max(1, nextScale));
+      if (lightboxState.scale === 1) {
+        lightboxState.translateX = 0;
+        lightboxState.translateY = 0;
+      }
+      applyTransform();
+    };
+
+    wrapper.addEventListener("click", (event) => {
+      if (event.target === wrapper) {
+        close();
+      }
+    });
+
+    document.getElementById("image-lightbox-close")?.addEventListener("click", close);
+    document.getElementById("image-lightbox-zoom-in")?.addEventListener("click", () => setScale(lightboxState.scale + 0.5));
+    document.getElementById("image-lightbox-zoom-out")?.addEventListener("click", () => setScale(lightboxState.scale - 0.5));
+    document.getElementById("image-lightbox-reset")?.addEventListener("click", () => setScale(1));
+
+    const stage = document.getElementById("image-lightbox-stage");
+    const image = document.getElementById("image-lightbox-img");
+    stage?.addEventListener("pointerdown", (event) => {
+      if (lightboxState.scale <= 1 || !image) return;
+      lightboxState.dragging = true;
+      lightboxState.startX = event.clientX;
+      lightboxState.startY = event.clientY;
+      lightboxState.originX = lightboxState.translateX;
+      lightboxState.originY = lightboxState.translateY;
+      image.setPointerCapture?.(event.pointerId);
+      stage.classList.add("dragging");
+      event.preventDefault();
+    });
+    stage?.addEventListener("pointermove", (event) => {
+      if (!lightboxState.dragging) return;
+      lightboxState.translateX = lightboxState.originX + (event.clientX - lightboxState.startX);
+      lightboxState.translateY = lightboxState.originY + (event.clientY - lightboxState.startY);
+      applyTransform();
+    });
+    const stopDragging = () => {
+      lightboxState.dragging = false;
+      stage?.classList.remove("dragging");
+    };
+    stage?.addEventListener("pointerup", (event) => {
+      stopDragging();
+      if (event.pointerType === "touch") {
+        const now = Date.now();
+        if (now - lightboxState.lastTapAt < 280) {
+          setScale(lightboxState.scale > 1 ? 1 : 2);
+          lightboxState.lastTapAt = 0;
+        } else {
+          lightboxState.lastTapAt = now;
+        }
+      }
+    });
+    stage?.addEventListener("pointercancel", stopDragging);
+    stage?.addEventListener("pointerleave", stopDragging);
+    stage?.addEventListener("dblclick", () => setScale(lightboxState.scale > 1 ? 1 : 2));
+    stage?.addEventListener(
+      "wheel",
+      (event) => {
+        event.preventDefault();
+        setScale(lightboxState.scale + (event.deltaY < 0 ? 0.25 : -0.25));
+      },
+      { passive: false }
+    );
+
+    document.addEventListener("keydown", (event) => {
+      if (wrapper.classList.contains("hidden")) return;
+      if (event.key === "Escape") close();
+    });
+
+    wrapper._close = close;
+    wrapper._applyTransform = applyTransform;
+    wrapper._setScale = setScale;
+  };
+
+  const openImageLightbox = (src, alt = "Image") => {
+    if (!src) return;
+    ensureLightbox();
+    const wrapper = document.getElementById("image-lightbox");
+    const image = document.getElementById("image-lightbox-img");
+    if (!wrapper || !image) return;
+    lightboxState.scale = 1;
+    lightboxState.translateX = 0;
+    lightboxState.translateY = 0;
+    lightboxState.dragging = false;
+    image.src = src;
+    image.alt = alt;
+    wrapper.classList.remove("hidden");
+    wrapper.setAttribute("aria-hidden", "false");
+    document.body.classList.add("image-lightbox-open");
+    wrapper._applyTransform?.();
+  };
+
   const authHeaders = () => (state.token ? { Authorization: `Bearer ${state.token}` } : {});
+  const getPostLoginPath = (user = state.user) => (user?.isAdmin ? "/admin" : "/dashboard");
 
   const api = async (url, options = {}) => {
     const headers = { ...(options.headers || {}), ...authHeaders() };
@@ -590,23 +383,19 @@ const GreenLoop = (() => {
   };
 
   const updateChrome = () => {
-    ensureDocumentMeta();
     ensureShell();
-    ensureGlobalFooter();
-    ensureAdminShortcut();
-    ensureAdminDrawer();
     const badge = $("#session-badge");
     if (badge) {
       badge.classList.toggle("hidden", !state.user);
       badge.innerHTML = state.user
         ? `
-            <a class="session-badge-link session-badge-link-tpl" href="/seller?id=${state.user.id}" aria-label="Open profile">
+            <a class="session-badge-link" href="/seller?id=${state.user.id}" aria-label="Open profile">
               <span class="session-avatar-wrap">
                 ${state.user.avatarUrl ? `<img class="session-avatar" src="${escapeHtml(state.user.avatarUrl)}" alt="${escapeHtml(state.user.fullName)}" />` : `<span class="session-avatar session-avatar-fallback">${escapeHtml(getInitials(state.user.fullName))}</span>`}
               </span>
               <span class="session-copy">
                 <strong>${escapeHtml(state.user.fullName)}</strong>
-                <span>${escapeHtml(state.user.verificationStatus)}${state.user?.isAdmin ? " · Admin" : ""}</span>
+                <span>${escapeHtml(state.user.verificationStatus)}</span>
               </span>
             </a>
           `
@@ -627,28 +416,12 @@ const GreenLoop = (() => {
     if (adminLink) {
       adminLink.classList.toggle("hidden", !state.user?.isAdmin);
     }
-    if (state.user && window.location.pathname === "/admin" && !state.user?.isAdmin) {
-      window.location.href = "/dashboard";
-      return;
-    }
 
     ensureFab();
     const fab = $("#floating-plus-btn");
     if (fab) {
       const onSellPage = window.location.pathname === "/sell";
       fab.classList.toggle("hidden", !state.token || onSellPage);
-    }
-
-    // Avatar: admins go to /admin, regular users go to their seller profile
-    const avatarLink = document.querySelector(".session-badge-link-tpl");
-    if (avatarLink) {
-      if (state.user?.isAdmin) {
-        avatarLink.href = "/admin";
-        avatarLink.setAttribute("aria-label", "Admin panel");
-        avatarLink.classList.add("session-badge-admin");
-      } else {
-        avatarLink.href = "/seller?id=" + (state.user?.id || "");
-      }
     }
   };
 
@@ -661,13 +434,6 @@ const GreenLoop = (() => {
     state.user = data.user;
     updateChrome();
     return data.user;
-  };
-
-  const resolvePostAuthRedirect = (redirectAuthedTo, user = state.user) => {
-    if (!redirectAuthedTo) return null;
-    if (typeof redirectAuthedTo === "function") return redirectAuthedTo(user);
-    if (redirectAuthedTo === "/dashboard") return getPostLoginPath(user);
-    return redirectAuthedTo;
   };
 
   const bootstrap = async ({ protectedPage = false, redirectAuthedTo = null } = {}) => {
@@ -683,10 +449,9 @@ const GreenLoop = (() => {
     updateChrome();
 
     if (redirectAuthedTo && state.user) {
-      const nextPath = resolvePostAuthRedirect(redirectAuthedTo, state.user);
-      if (nextPath) {
-        window.location.replace(nextPath);
-      }
+      const targetPath =
+        redirectAuthedTo === "/dashboard" ? getPostLoginPath(state.user) : redirectAuthedTo;
+      window.location.replace(targetPath);
       return null;
     }
     if (protectedPage) {
@@ -706,44 +471,21 @@ const GreenLoop = (() => {
   };
 
   const wireListingChatButtons = (target) => {
-  target.querySelectorAll(".listing-chat-button").forEach((button) => {
-    button.addEventListener("click", async (e) => {
-      e.preventDefault();
-      const itemId = button.dataset.itemId;
-      if (!state.token) {
-        window.location.href = "/login";
-        return;
-      }
-      try {
-        const chat = await api("/api/chats/start", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ itemId: Number(itemId) }),
-        });
-        window.location.href = `/chat?conversation=${chat.id}`;
-      } catch (error) {
-        showToast(error.message || "Could not open chat.", true);
-      }
+    target.querySelectorAll(".listing-chat-button").forEach((button) => {
+      button.addEventListener("click", async () => {
+        try {
+          const conversation = await api("/api/chats/start", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ itemId: Number(button.dataset.itemId) }),
+          });
+          window.location.href = `/chat?conversation=${conversation.id}`;
+        } catch (error) {
+          showToast(error.message, true);
+        }
+      });
     });
-  });
-  // Delete button — owner or admin
-  target.querySelectorAll(".listing-delete-btn").forEach((button) => {
-    button.addEventListener("click", async (e) => {
-      e.preventDefault();
-      const itemId = button.dataset.itemId;
-      const itemTitle = button.dataset.itemTitle;
-      if (!confirm(`Delete "${itemTitle}"? This cannot be undone.`)) return;
-      try {
-        await api(`/api/items/${itemId}`, { method: "DELETE" });
-        showToast("Item deleted.");
-        const data = await api("/api/items");
-        renderItems(data.items || []);
-      } catch (err) {
-        showToast(err.message || "Delete failed.", true);
-      }
-    });
-  });
-};
+  };
 
   const renderItems = (items, targetId = "items") => {
     const target = document.getElementById(targetId);
@@ -754,10 +496,17 @@ const GreenLoop = (() => {
     }
     target.innerHTML = items
       .map(
-        (item) => `
+        (item) => {
+          const videoUrl = getListingVideo(item);
+          return `
         <article class="listing-card">
           <a class="listing-image-link" href="/item?id=${item.id}">
-            <div class="listing-image" style="background-image:url('${getListingImage(item)}')">
+            <div class="listing-image${videoUrl ? " has-video" : ""}"${videoUrl ? "" : ` style="background-image:url('${getListingImage(item)}')"`}>
+              ${
+                videoUrl
+                  ? `<video class="listing-video" src="${escapeHtml(videoUrl)}" poster="${escapeHtml(getListingImage(item))}" autoplay muted loop playsinline controls preload="metadata"></video>`
+                  : ""
+              }
               <div class="listing-badge-row">
                 <span class="listing-badge">#${item.id}</span>
                 <span class="listing-badge listing-badge-soft">${escapeHtml(item.condition_status)}</span>
@@ -791,13 +540,13 @@ const GreenLoop = (() => {
               <small class="listing-pickup">Fast view, clear price, ready to reserve.</small>
               <div class="cta-row">
                 ${state.user && Number(state.user.id) !== Number(item.seller_id) ? `<button class="ghost-button listing-chat-button" data-item-id="${item.id}" type="button">Chat seller</button>` : ""}
-                ${state.user && (Number(state.user.id) === Number(item.seller_id) || state.user.isAdmin) ? `<button class="listing-delete-btn" data-item-id="${item.id}" data-item-title="${escapeHtml(item.title)}" type="button" style="color:#e4393c;font-weight:700">Delete</button>` : ""}
                 <a class="ghost-link" href="/item?id=${item.id}">View item →</a>
               </div>
             </div>
           </div>
         </article>
-      `
+      `;
+        }
       )
       .join("");
     wireListingChatButtons(target);
@@ -853,17 +602,13 @@ const GreenLoop = (() => {
       .join("");
   };
 
-  const getPostLoginPath = (user = state.user) => {
-    if (user?.isAdmin) return "/admin";
-    return "/dashboard";
-  };
-
   return {
     $,
     api,
     state,
     setSession,
     clearSession,
+    getPostLoginPath,
     showToast,
     bootstrap,
     requireAuth,
@@ -873,7 +618,7 @@ const GreenLoop = (() => {
     renderOpportunities,
     renderSellerBadge,
     getListingImage,
-    getPostLoginPath,
+    openImageLightbox,
   };
 })();
 

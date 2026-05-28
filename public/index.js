@@ -8,9 +8,14 @@ const initCarousel = () => {
 
   let index = 0;
   let timer = null;
+  let touchStartX = 0;
+  let touchDeltaX = 0;
+  const mobileQuery = window.matchMedia("(max-width: 780px)");
+  const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const shouldAutoplay = () => !mobileQuery.matches && !reducedMotionQuery.matches;
 
   const render = () => {
-    track.style.transform = `translateX(-${index * 100}%)`;
+    track.style.transform = `translate3d(-${index * 100}%, 0, 0)`;
     dotsWrap.querySelectorAll(".carousel-dot").forEach((dot, dotIndex) => {
       dot.classList.toggle("active", dotIndex === index);
     });
@@ -21,8 +26,14 @@ const initCarousel = () => {
     render();
   };
 
-  const restart = () => {
+  const stop = () => {
     clearInterval(timer);
+    timer = null;
+  };
+
+  const restart = () => {
+    stop();
+    if (!shouldAutoplay() || document.hidden) return;
     timer = setInterval(() => goTo(index + 1), 5200);
   };
 
@@ -47,6 +58,39 @@ const initCarousel = () => {
     goTo(index - 1);
     restart();
   });
+
+  track.addEventListener("mouseenter", stop);
+  track.addEventListener("mouseleave", restart);
+  track.addEventListener(
+    "touchstart",
+    (event) => {
+      const point = event.touches?.[0];
+      if (!point) return;
+      stop();
+      touchStartX = point.clientX;
+      touchDeltaX = 0;
+    },
+    { passive: true }
+  );
+  track.addEventListener(
+    "touchmove",
+    (event) => {
+      const point = event.touches?.[0];
+      if (!point) return;
+      touchDeltaX = point.clientX - touchStartX;
+    },
+    { passive: true }
+  );
+  track.addEventListener("touchend", () => {
+    if (Math.abs(touchDeltaX) > 48) {
+      goTo(index + (touchDeltaX < 0 ? 1 : -1));
+    }
+    touchStartX = 0;
+    touchDeltaX = 0;
+    restart();
+  });
+  document.addEventListener("visibilitychange", restart);
+  window.addEventListener("resize", restart);
 
   render();
   restart();

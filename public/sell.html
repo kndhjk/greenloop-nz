@@ -40,72 +40,58 @@
           <form id="publish-form" class="stack-form">
             <div class="two-col">
               <input name="title" placeholder="Product name" required />
-              <input name="location" list="sell-location-options" placeholder="Pickup area" required />
+              <input name="location" placeholder="Pickup area" required />
             </div>
             <textarea name="description" placeholder="Condition, defects, pickup instructions, context..." required></textarea>
             <div class="two-col">
-              <input name="category" list="sell-category-options" placeholder="Category" required />
-              <input name="conditionStatus" list="sell-condition-options" placeholder="Condition" required />
+              <select name="category" required>
+                <option value="">Category</option>
+                <option value="furniture">Furniture</option>
+                <option value="desk">Desk</option>
+                <option value="chair">Chair</option>
+                <option value="decor">Decor</option>
+                <option value="electronics">Electronics</option>
+                <option value="kitchen">Kitchen</option>
+                <option value="storage">Storage</option>
+              </select>
+              <select name="conditionStatus" required>
+                <option value="">Condition</option>
+                <option value="new">New</option>
+                <option value="like new">Like new</option>
+                <option value="good">Good</option>
+                <option value="fair">Fair</option>
+              </select>
             </div>
             <div class="two-col">
               <input name="price" type="number" min="0" step="0.01" placeholder="Price (NZD)" required />
-              <input name="pickupWindows" list="sell-pickup-options" placeholder="Pickup windows" />
+              <input name="pickupWindows" placeholder="Pickup windows" />
             </div>
-            <input name="imageUrl" placeholder="Primary image URL or upload below" />
-            <div class="two-col">
+            <input name="imageUrl" placeholder="Primary image URL (optional)" />
+            <div class="two-col media-upload-grid">
               <label class="upload">
-                <span>Upload photo</span>
-                <input id="item-upload" type="file" accept="image/*" />
+                <span>Upload images</span>
+                <input id="item-images" type="file" accept="image/*" multiple />
               </label>
-              <input name="deliveryOptions" list="sell-delivery-options" placeholder="Delivery options: standard,budget" />
+              <label class="upload">
+                <span>Upload video</span>
+                <input id="item-video" type="file" accept="video/*" />
+              </label>
             </div>
+            <p class="fine-print media-rule-copy">Media rules: up to 15 images, or up to 3 images plus 1 video.</p>
+            <div id="item-media-preview" class="item-media-preview hidden"></div>
+            <input name="deliveryOptions" placeholder="Delivery options: standard,budget" />
             <label class="checkbox-row">
               <input name="donationAvailable" type="checkbox" />
               <span>This item can be donated if unsold.</span>
             </label>
-            <button id="publish-button" type="submit">Publish listing</button>
+            <button type="submit">Publish listing</button>
           </form>
-          <datalist id="sell-category-options">
-            <option value="furniture"></option>
-            <option value="desk"></option>
-            <option value="chair"></option>
-            <option value="decor"></option>
-            <option value="electronics"></option>
-            <option value="kitchen"></option>
-            <option value="storage"></option>
-          </datalist>
-          <datalist id="sell-condition-options">
-            <option value="new"></option>
-            <option value="like new"></option>
-            <option value="good"></option>
-            <option value="fair"></option>
-          </datalist>
-          <datalist id="sell-location-options">
-            <option value="Auckland CBD"></option>
-            <option value="Grafton"></option>
-            <option value="Newmarket"></option>
-            <option value="Mount Eden"></option>
-            <option value="Epsom"></option>
-            <option value="Parnell"></option>
-          </datalist>
-          <datalist id="sell-pickup-options">
-            <option value="Weeknights after 6pm"></option>
-            <option value="Weekdays 12pm-2pm"></option>
-            <option value="Weekends anytime"></option>
-            <option value="By arrangement"></option>
-          </datalist>
-          <datalist id="sell-delivery-options">
-            <option value="standard"></option>
-            <option value="budget"></option>
-            <option value="pickup only"></option>
-            <option value="standard,budget"></option>
-          </datalist>
         </div>
       </section>
     </main>
 
     <div id="toast" class="toast"></div>
     <script src="/app-shell.js"></script>
-    <script src="/sell.js?v=20260524b"></script>
+    <script src="/sell.js?v=20260526-mediafix"></script>
   </body>
 </html>
