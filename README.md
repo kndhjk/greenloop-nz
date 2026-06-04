@@ -1,5 +1,7 @@
 # GreenLoop NZ
 
+Quickly view：http://4.155.227.179:5001
+
 GreenLoop NZ is a full-stack student-first circular commerce platform for New Zealand campuses. The core idea is simple: students should be able to buy, sell, reserve, chat, arrange pickup, request support services, and even explore jobs without bouncing across multiple disconnected tools.
 
 This repository currently reflects a working MVP focused on the University of Auckland flow. Registration is restricted by allowed student email domains, trust signals are built into listings and chat, and the product combines marketplace behavior with logistics, community, and opportunity discovery.
