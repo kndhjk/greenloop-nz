@@ -13,6 +13,7 @@ const nodemailer = require("nodemailer");
 
 const app = express();
 const PORT = Number(process.env.PORT || 5001);
+const HOST = process.env.HOST || "127.0.0.1";
 const JWT_SECRET = process.env.JWT_SECRET || "change-me";
 const ALLOWED_STUDENT_DOMAINS = String(process.env.ALLOWED_STUDENT_DOMAINS || "aucklanduni.ac.nz,auckland.ac.nz")
   .split(",")
@@ -3292,8 +3293,8 @@ app.use((err, _req, res, _next) => {
 
 ensureSchema()
   .then(() => {
-    app.listen(PORT, () => {
-      console.log(`GreenLoop running on http://0.0.0.0:${PORT}`);
+    app.listen(PORT, HOST, () => {
+      console.log(`GreenLoop running on http://${HOST}:${PORT}`);
     });
   })
   .catch((error) => {

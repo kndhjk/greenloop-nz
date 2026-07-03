@@ -2,7 +2,7 @@
 
 Live prototype: [https://4.155.227.179/](https://4.155.227.179/)
 
-Public HTTPS now terminates on the standard `443` entrypoint and proxies to the GreenLoop app running on local port `5001`.
+Public HTTPS now terminates on the standard `443` entrypoint and proxies to the GreenLoop app running only on internal `127.0.0.1:5001`.
 
 GreenLoop NZ is a student-first circular commerce MVP for New Zealand campuses. The product combines a second-hand marketplace, reservation and chat flows, lightweight operations support, campus opportunities, external NZ jobs discovery, resume matching, and admin moderation in one Node.js application.
 
@@ -96,6 +96,8 @@ These are the changes that now matter most for anyone reading the repo:
   - `Referrer-Policy`
   - `X-Content-Type-Options`
   - `X-Frame-Options`
+- the app can bind to `HOST=127.0.0.1` so public traffic is expected to come through nginx or Caddy instead of hitting Express directly
+- the public deployment path is `80/443` only; port `5001` should stay private behind the reverse proxy and firewall
 - resume uploads require authentication
 - upload validation is stricter for both media and resumes
 - admin-only routes are enforced for user moderation and opportunity management
@@ -124,6 +126,7 @@ The repository includes `.env.example`. The most important variables are:
 | Variable | Purpose |
 | --- | --- |
 | `PORT` | Express port |
+| `HOST` | Express bind address. Use `127.0.0.1` behind a reverse proxy. |
 | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | MySQL connection |
 | `JWT_SECRET` | JWT signing secret |
 | `ALLOWED_STUDENT_DOMAINS` | student email allowlist |
@@ -173,6 +176,16 @@ npm start
 ```
 
 7. Open `http://localhost:5001`
+
+## Production deployment notes
+
+For a public deployment, GreenLoop is meant to sit behind a reverse proxy instead of exposing the Node port directly.
+
+- set `HOST=127.0.0.1`
+- set `PUBLIC_BASE_URL` to your public `https://` origin
+- terminate TLS at nginx or Caddy on `443` and proxy to `http://127.0.0.1:5001`
+- leave only `80/443` reachable from the public internet and keep `5001` firewalled off
+- if you deploy on a raw public IP instead of a DNS name, plan for an IP-capable ACME issuance flow and shorter certificate renewal windows
 
 ## Repository structure
 
@@ -233,6 +246,16 @@ That breadth is useful for demonstrating the concept, but it also means the proj
 ### 4. Security and product trust had to be tightened after the fact
 
 As support pages, uploads, and admin tools became more real, the repository needed better upload controls, route protection, and documentation about what is actually protected versus what is still prototype-grade.
+
+### 5. IP-only HTTPS deployment needed extra operational work
+
+Running the live prototype directly on a public server IP instead of a normal hostname made HTTPS and service exposure less forgiving. The Node app needed to move behind a reverse proxy, generated links needed an explicit public base URL, and certificate renewal assumptions had to be documented more clearly.
+
+Result:
+
+- the public entrypoint is now `https://4.155.227.179/` on `443`
+- the Express app should stay bound to `127.0.0.1:5001`
+- deployment docs now distinguish the public HTTPS edge from the internal application port
 
 ## Current status
 
