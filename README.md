@@ -1,204 +1,141 @@
 # GreenLoop NZ
 
-Quickly view：http://4.155.227.179:5001
+Live prototype: `http://4.155.227.179:5001`
 
-GreenLoop NZ is a full-stack student-first circular commerce platform for New Zealand campuses. The core idea is simple: students should be able to buy, sell, reserve, chat, arrange pickup, request support services, and even explore jobs without bouncing across multiple disconnected tools.
+GreenLoop NZ is a student-first circular commerce MVP for New Zealand campuses. The product combines a second-hand marketplace, reservation and chat flows, lightweight operations support, campus opportunities, external NZ jobs discovery, resume matching, and admin moderation in one Node.js application.
 
-This repository currently reflects a working MVP focused on the University of Auckland flow. Registration is restricted by allowed student email domains, trust signals are built into listings and chat, and the product combines marketplace behavior with logistics, community, and opportunity discovery.
+This repository reflects the current MVP shape more accurately than the earlier GitHub copy:
 
-## Product positioning
+- the marketplace, auth, chat, community, services, opportunity, support, and admin flows live in this repo
+- the external NZ jobs feed is cache-bound inside this repo
+- the crawler that refreshes that jobs cache runs separately
 
-GreenLoop is designed around common student pain points:
+Direct LinkedIn scraping is not part of the current checked-in implementation. The active jobs experience in GreenLoop now reads a cached NZ jobs feed and exposes it through `/api/jobs`.
 
-- moving into or out of accommodation
-- buying and selling second-hand furniture, desks, chairs, electronics, and kitchen items
-- reducing trust friction between strangers
-- arranging pickup, delivery, and lightweight support services
-- keeping useful campus-side features such as community posts and job discovery in the same product
+## What is in this repo
 
-In practice, GreenLoop sits between:
+- Express server in `server.js`
+- static frontend pages in `public/`
+- MySQL-backed auth, marketplace, admin, and workflow data
+- PDF resume upload and resume-to-job ranking
+- admin inboxes for verification, operations, support, and opportunity applications
 
-- a campus marketplace
-- a trust and verification layer
-- a lightweight service coordination tool
-- a student opportunities board
+## Current product scope
 
-## Main user flows
+### Identity and trust
 
-1. Register with a student email, verify the account by code, and sign in.
-2. Browse listings or publish an item with images, videos, condition, pickup windows, and delivery options.
-3. Open an item page, review seller trust signals, then reserve the item or start a chat.
-4. Manage reservations, complete or cancel them, and keep all listing-related messages in one place.
-5. Request delivery, cleaning, repair, room design suggestions, or donation routing when needed.
-6. Explore jobs and internships, upload a PDF resume, and get a resume-to-job matching result.
-7. Use admin pages to manage verification status, users, and audit activity.
-
-## Core features
-
-### 1. Identity and trust
-
-- student email restriction via `ALLOWED_STUDENT_DOMAINS`
-- email verification code flow for new registrations
-- JWT-based authenticated sessions
-- seller verification state shown across listings, seller pages, and chat
+- student email allowlist via `ALLOWED_STUDENT_DOMAINS`
+- registration verification code flow
+- JWT-based authentication
+- admin bootstrap account support
+- seller verification status shown across the product
 - activity logging for key user and admin actions
 
-### 2. Marketplace
+### Marketplace
 
-- listing creation with title, description, category, price, location, condition, media, pickup windows, and delivery options
-- marketplace filtering by keyword, category, location, price range, and condition
-- item detail pages with related listings
-- seller profile pages with listing and completion stats
+- create listings with price, condition, pickup windows, delivery options, images, and optional video
+- browse and filter listings by keyword, category, location, price, and condition
+- seller pages, item pages, and related listing suggestions
+- reserve, confirm, complete, or cancel item pickup flows
 
-### 3. Reservation and messaging
+### Messaging and engagement
 
-- reserve an available item with pickup time and note
-- state transitions for reservations: `pending`, `confirmed`, `completed`, `cancelled`
-- one conversation per buyer-item pair
-- per-thread unread counts and presence indicators
-- image messages in chat
-- conversation deletion
+- buyer-seller chat with unread counts and image messages
+- dashboard summary for listings, reservations, and notifications
+- community posting
+- membership upgrade flow
 
-### 4. Services and circular add-ons
+### Services and circular operations
 
-- delivery request submission with fee estimation
-- service request submission for operational support
-- room design recommendation flow based on uploaded room image and budget/style preference
-- donation routing for items that should be given to partner organizations instead of sold
+- delivery request submission
+- service request submission
+- room design recommendation flow
+- donation routing flow
+- support request form that writes directly into the admin workflow
 
-### 5. Community and engagement
+### Opportunities and jobs
 
-- campus community posts with optional topic and image
-- dashboard summary with listings, reservations, notifications, and membership state
-- premium membership upgrade flow
+- campus opportunities posted and managed by admins
+- student applications to opportunities with optional PDF CV upload
+- external NZ jobs feed exposed through `/api/jobs`
+- `/api/jobs/refresh` starts the external scraper process configured by `JOB_SCRAPER_DIR`
+- resume parsing with `pdf-parse`
+- heuristic resume-to-job ranking and suggestions through `/api/jobs/match`
 
-### 6. Jobs and resume matching
+### Admin
 
-- opportunities board for internships, volunteer work, and other openings
-- cached jobs feed exposed through `/api/jobs`
-- PDF resume upload
-- resume parsing via `pdf-parse`
-- heuristic resume-to-job matching and improvement suggestions
+- verification queue
+- user create, update, delete, and verification actions
+- marketplace listing moderation
+- operations inbox for reservations, delivery, service, and donation requests
+- support inbox
+- opportunity creation, editing, deletion, and application review
+- activity log
 
-### 7. Admin operations
+## Important implementation changes
 
-- verification queue for pending users
-- user search, create, update, and delete
-- verification approval/rejection
-- activity log inspection
-- platform summary totals
+These are the changes that now matter most for anyone reading the repo:
 
-## Frontend pages
+- Jobs are no longer described as an in-process scraper inside `server.js`. The app reads a cache file from `JOB_CACHE_FILE`.
+- The active external jobs pipeline is cache-bound and Seek-oriented. It is not a direct LinkedIn integration.
+- Opportunity posting is now admin-only.
+- Opportunity applications are stored separately and surfaced in the admin hiring inbox.
+- Resume uploads are authenticated, PDF-only, and capped at 10 MB.
+- General uploads are restricted to common image and video types instead of accepting broad MIME groups.
+- Help, privacy, trust, and terms pages are first-class routes in the Express app.
+- The GitHub Actions workflow now runs repository checks instead of pretending the app is a static GitHub Pages site.
 
-The app is served as static pages from `public/` by the Express server. The main routes include:
+## Security and hardening reflected in the repo
 
-- `/` home page
-- `/marketplace` listings browser
-- `/item` item detail page
-- `/seller` seller profile
-- `/sell` create listing flow
-- `/chat` buyer-seller messaging
-- `/dashboard` signed-in user overview
-- `/services` service requests
-- `/opportunities` jobs and internships
-- `/community` campus feed
-- `/login`, `/register`, `/forgot-password`, `/reset-password`
-- `/admin` and `/admin/verifications`
+- `x-powered-by` is disabled
+- basic response hardening headers are set:
+  - `Content-Security-Policy`
+  - `Permissions-Policy`
+  - `Referrer-Policy`
+  - `X-Content-Type-Options`
+  - `X-Frame-Options`
+- resume uploads require authentication
+- upload validation is stricter for both media and resumes
+- admin-only routes are enforced for user moderation and opportunity management
 
-## Backend API overview
+## Jobs architecture
 
-The backend is a single Express app in `server.js`. Major route groups include:
+GreenLoop's jobs UI and GreenLoop's jobs crawler are intentionally separated.
 
-- Auth:
-  - `/api/auth/register/start`
-  - `/api/auth/register/verify`
-  - `/api/auth/login`
-  - `/api/auth/forgot-password`
-  - `/api/auth/reset-password`
-  - `/api/auth/me`
+Inside this repo:
 
-- Marketplace and trust:
-  - `/api/items`
-  - `/api/items/:id`
-  - `/api/sellers/:id`
-  - `/api/reservations`
-  - `/api/reservations/mine`
-  - `/api/reservations/:id/status`
+- `GET /api/jobs` reads `JOB_CACHE_FILE`
+- `POST /api/jobs/refresh` starts the configured scraper entrypoint in `JOB_SCRAPER_DIR`
+- `POST /api/jobs/match` ranks cached jobs against an uploaded PDF resume
 
-- Chat:
-  - `/api/chats/start`
-  - `/api/chats`
-  - `/api/chats/presence`
-  - `/api/chats/:id/messages`
-  - `/api/chats/:id`
+Outside this repo:
 
-- Services and circular flows:
-  - `/api/deliveries`
-  - `/api/services`
-  - `/api/room-design`
-  - `/api/donations`
+- the actual crawler process refreshes `jobs.json`
+- that crawler can change independently when external sites change markup, route shape, or anti-bot behavior
 
-- Community and dashboard:
-  - `/api/dashboard`
-  - `/api/community/posts`
-  - `/api/activity/track`
-
-- Jobs and analytics:
-  - `/api/opportunities`
-  - `/api/jobs`
-  - `/api/jobs/match`
-  - `/api/jobs/refresh`
-  - `/api/stats`
-
-- Admin:
-  - `/api/admin/summary`
-  - `/api/admin/verification-queue`
-  - `/api/admin/users`
-  - `/api/admin/users/:id`
-  - `/api/admin/users/:id/verification`
-  - `/api/admin/activity`
-
-## Tech stack
-
-- Frontend: vanilla HTML, CSS, and JavaScript
-- Backend: Node.js + Express
-- Database: MySQL
-- Authentication: JWT + `bcryptjs`
-- File uploads: `multer`
-- Email: `nodemailer`
-- Resume parsing: `pdf-parse`
-
-There is no frontend build step. The server renders static files directly and exposes JSON APIs from the same process.
-
-## Repository structure
-
-```text
-.
-|- public/                 Frontend pages, styles, and client scripts
-|- uploads/                Runtime upload directory (tracked only with .gitkeep)
-|- server.js               Main Express server and API surface
-|- package.json            Runtime dependencies and start script
-|- package-lock.json
-|- .env.example            Required environment variables
-`- README.md
-```
+This split exists because the external jobs source proved too unstable to treat as a normal in-process fetch.
 
 ## Environment variables
 
-The repository includes `.env.example`. Key variables are:
+The repository includes `.env.example`. The most important variables are:
 
 | Variable | Purpose |
 | --- | --- |
-| `PORT` | HTTP port for the Express app |
+| `PORT` | Express port |
 | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | MySQL connection |
 | `JWT_SECRET` | JWT signing secret |
 | `ALLOWED_STUDENT_DOMAINS` | student email allowlist |
-| `REGISTRATION_CODE_TTL_MINUTES` | registration code lifetime |
-| `ADMIN_EMAILS` | emails treated as admin accounts |
-| `ADMIN_BOOTSTRAP_EMAIL`, `ADMIN_BOOTSTRAP_PASSWORD`, `ADMIN_BOOTSTRAP_NAME` | bootstrap admin configuration |
-| `EXPOSE_RESET_LINKS` | whether password-reset links are returned in API responses |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM_NAME` | outbound email configuration |
-| `PUBLIC_BASE_URL` | public origin used in generated links |
+| `REGISTRATION_CODE_TTL_MINUTES` | verification code lifetime |
+| `ADMIN_EMAILS` | users treated as admins |
+| `ADMIN_BOOTSTRAP_EMAIL`, `ADMIN_BOOTSTRAP_PASSWORD`, `ADMIN_BOOTSTRAP_NAME` | bootstrap admin account |
+| `EXPOSE_RESET_LINKS` | exposes reset links in API responses for development |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM_NAME` | outbound email config |
+| `SUPPORT_EMAIL` | support contact returned by `/api/support` |
+| `PUBLIC_BASE_URL` | origin used in generated links |
+| `JOB_CACHE_FILE` | path to the cached external jobs JSON file |
+| `JOB_SCRAPER_DIR` | directory containing the external scraper |
+| `JOB_SCRAPER_ENTRY` | scraper entry file, usually `app.py` |
+| `JOB_SCRAPER_LOCK_MAX_AGE_MS` | stale lock timeout for background refreshes |
 
 ## Local development
 
@@ -206,52 +143,108 @@ The repository includes `.env.example`. Key variables are:
 
 - Node.js 18+ recommended
 - MySQL 8+ recommended
-- a writable local `uploads/` directory
+- writable `uploads/` directory
 - SMTP credentials if you want real email delivery
+- optional separate jobs scraper checkout if you want `/api/jobs/refresh` to work end-to-end
 
 ### Run locally
 
-1. Copy `.env.example` to `.env`
-2. Fill in the database, JWT, and SMTP values
-3. Install dependencies:
+1. Copy `.env.example` to `.env`.
+2. Fill in database, JWT, and email values.
+3. If you want jobs refresh to work, point `JOB_CACHE_FILE` and `JOB_SCRAPER_DIR` at your external scraper checkout.
+4. Install dependencies:
 
 ```bash
 npm install
 ```
 
-4. Start the app:
+5. Run syntax checks:
+
+```bash
+npm run check
+```
+
+6. Start the server:
 
 ```bash
 npm start
 ```
 
-5. Open:
+7. Open `http://localhost:5001`
+
+## Repository structure
 
 ```text
-http://localhost:5001
+.
+|- .github/workflows/       GitHub Actions checks
+|- public/                  Static frontend pages and client scripts
+|- uploads/                 Runtime upload directory
+|- server.js                Main Express app and API surface
+|- package.json             Runtime dependencies and scripts
+|- package-lock.json
+|- .env.example
+`- README.md
 ```
 
-## Deployment notes
+## Challenges encountered
 
-- GreenLoop is currently structured as a single-service Node application.
-- Static frontend pages and API routes are served by the same Express process.
-- User uploads are stored on local disk under `uploads/`.
-- The app is designed to run on its own port and its own MySQL database/user rather than being mixed into another service.
+These are the real implementation problems that affected the product and the repository:
 
-## Current project status
+### 1. External jobs sources were unstable
 
-This repository is best understood as a vertical prototype / MVP with real product breadth:
+The hardest recent issue was the jobs pipeline. External NZ jobs pages changed route patterns and began returning anti-bot responses, including Cloudflare-style `403` behavior for the old fetch path. That made the original lightweight scraping approach unreliable.
+
+Result:
+
+- GreenLoop had to move to a cache-bound jobs model
+- the crawler had to become a separate concern
+- the README needed to stop implying that jobs data was just a simple in-app fetch
+
+### 2. Repo drift happened as features grew
+
+The frontend expanded faster than the single `server.js` backend file. Over time, pages for support, opportunity applications, and admin workflows expected APIs that were not clearly documented or fully reflected in the repository snapshot.
+
+Result:
+
+- the GitHub copy fell behind the actual intended product behavior
+- some flows looked present in the UI but were under-documented or incomplete server-side
+
+### 3. MVP speed created operational debt
+
+GreenLoop covers a lot of product surface:
 
 - marketplace
-- trust and verification
-- buyer-seller messaging
-- logistics/service requests
-- community
-- jobs and resume matching
+- messaging
+- ops requests
+- support
+- jobs
+- resume matching
 - admin tooling
 
-It is feature-rich at the product level, but still pragmatic in engineering shape. For example, the current repository does not yet include a formal migration system, Docker setup, or automated test suite. The focus so far has been delivering a working end-to-end product.
+That breadth is useful for demonstrating the concept, but it also means the project still carries MVP tradeoffs:
 
-## Summary
+- no formal migration framework
+- no containerized deployment path
+- no automated test suite beyond basic repo checks
+- a single large application file instead of deeper modularization
 
-GreenLoop NZ is not just a second-hand listings site. It is a campus-focused circular commerce platform that combines marketplace transactions, trust, logistics, lightweight services, and opportunities into a single student workflow.
+### 4. Security and product trust had to be tightened after the fact
+
+As support pages, uploads, and admin tools became more real, the repository needed better upload controls, route protection, and documentation about what is actually protected versus what is still prototype-grade.
+
+## Current status
+
+GreenLoop NZ is a working vertical prototype with real breadth, not a production-hardened marketplace. The repository now better reflects that reality:
+
+- broad end-to-end product coverage exists
+- the jobs stack is explicitly split between app and crawler
+- admin/support/opportunity flows are clearer
+- GitHub documentation is aligned more closely with the current implementation
+
+## Next sensible improvements
+
+- split `server.js` into modules
+- add migrations
+- add real integration tests
+- add a dedicated deployment workflow for the Node app
+- document the external jobs scraper repository alongside this one

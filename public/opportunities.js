@@ -17,13 +17,10 @@ const uploadOpportunityCv = async (input) => {
   if (!file) return "";
   const form = new FormData();
   form.append("file", file);
-  const response = await fetch("/api/uploads", {
+  const data = await GreenLoop.api("/api/uploads/resume", {
     method: "POST",
-    headers: GreenLoop.state.token ? { Authorization: `Bearer ${GreenLoop.state.token}` } : {},
     body: form,
   });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "CV upload failed.");
   opportunityState.uploadedCvUrl = data.url || "";
   GreenLoop.showToast("CV uploaded.");
   return opportunityState.uploadedCvUrl;

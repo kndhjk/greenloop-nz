@@ -4,7 +4,8 @@
   "description": "GreenLoop - New Zealand student-first resale marketplace",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "check": "node --check server.js && node --check public/app-shell.js && node --check public/admin.js && node --check public/dashboard.js && node --check public/help.js && node --check public/opportunities.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

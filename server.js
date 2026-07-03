@@ -34,12 +34,15 @@ const SMTP_SECURE = String(process.env.SMTP_SECURE || "1") === "1";
 const SMTP_USER = process.env.SMTP_USER || "noreply@mixport.co.nz";
 const SMTP_PASS = process.env.SMTP_PASS || "";
 const SMTP_FROM_NAME = process.env.SMTP_FROM_NAME || "GreenLoop NZ";
+const SUPPORT_EMAIL = String(process.env.SUPPORT_EMAIL || SMTP_USER || "support@greenloop.local").trim();
 const JOB_CACHE_FILE = process.env.JOB_CACHE_FILE || "/home/destiny/will-have-job/jobs.json";
 const JOB_SCRAPER_DIR = process.env.JOB_SCRAPER_DIR || "/home/destiny/will-have-job";
 const JOB_SCRAPER_ENTRY = process.env.JOB_SCRAPER_ENTRY || "app.py";
 const JOB_SCRAPER_LOCK = path.join(JOB_SCRAPER_DIR, "scrape.lock");
 const JOB_SCRAPER_LOCK_MAX_AGE_MS = Number(process.env.JOB_SCRAPER_LOCK_MAX_AGE_MS || 30 * 60 * 1000);
 const CHAT_ONLINE_WINDOW_SECONDS = Number(process.env.CHAT_ONLINE_WINDOW_SECONDS || 60);
+const OPPORTUNITY_TYPES = new Set(["internship", "volunteer"]);
+const SUPPORT_REQUEST_CATEGORIES = new Set(["general", "listing", "payment", "safety", "delivery", "jobs", "account"]);
 
 const uploadsDir = path.join(__dirname, "uploads");
 fs.mkdirSync(uploadsDir, { recursive: true });
@@ -66,7 +69,19 @@ const upload = multer({
   limits: { fileSize: 80 * 1024 * 1024 },
 });
 
+app.disable("x-powered-by");
 app.use(cors());
+app.use((_req, res, next) => {
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+  );
+  res.setHeader("Permissions-Policy", "camera=(), geolocation=(), microphone=()");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  next();
+});
 app.use(express.json({ limit: "12mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(uploadsDir));
@@ -145,6 +160,34 @@ const cleanText = (value, max = 255) => String(value || "").trim().slice(0, max)
 const createToken = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
 const createVerificationCode = () => String(Math.floor(100000 + Math.random() * 900000));
 const isAdminEmail = (value) => ADMIN_EMAILS.includes(String(value || "").trim().toLowerCase());
+const normalizeOpportunitySkills = (value) =>
+  normalizeList(value)
+    .map((entry) => cleanText(entry, 80))
+    .filter(Boolean)
+    .slice(0, 16);
+const normalizeHttpUrl = (value) => {
+  const raw = cleanText(value, 2000);
+  if (!raw) return "";
+  const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw.replace(/^\/+/, "")}`;
+  let parsed;
+  try {
+    parsed = new URL(withScheme);
+  } catch {
+    throw new Error("External apply URL must be a valid http or https link.");
+  }
+  if (!["http:", "https:"].includes(parsed.protocol) || !parsed.hostname) {
+    throw new Error("External apply URL must be a valid http or https link.");
+  }
+  return parsed.toString();
+};
+const normalizeUploadPath = (value) => {
+  const raw = cleanText(value, 255);
+  if (!raw) return "";
+  if (!raw.startsWith("/uploads/")) {
+    throw new Error("Uploaded file path is invalid.");
+  }
+  return `/uploads/${path.basename(raw)}`;
+};
 const buildAbsoluteUrl = (targetPath) => `${PUBLIC_BASE_URL}${targetPath.startsWith("/") ? targetPath : `/${targetPath}`}`;
 const formatJoinDate = (value) =>
   new Date(value).toLocaleDateString("en-NZ", {
@@ -731,6 +774,70 @@ const createNotification = async (userId, type, message, scheduledFor = null) =>
   );
 };
 
+const notifyAdmins = async (type, message, excludeUserId = null) => {
+  if (!ADMIN_EMAILS.length) return;
+  const placeholders = ADMIN_EMAILS.map(() => "?").join(", ");
+  const [rows] = await pool.execute(
+    `SELECT id
+     FROM users
+     WHERE email IN (${placeholders})`,
+    ADMIN_EMAILS
+  );
+  for (const row of rows) {
+    if (excludeUserId && Number(row.id) === Number(excludeUserId)) continue;
+    await createNotification(row.id, type, message);
+  }
+};
+
+const mapPublicOpportunityRow = (row) => {
+  let applyUrl = "";
+  try {
+    applyUrl = normalizeHttpUrl(row.apply_url);
+  } catch {
+    applyUrl = "";
+  }
+  return {
+    ...row,
+    apply_url: applyUrl,
+    skills: normalizeList(row.skills_json),
+  };
+};
+
+const mapAdminOpportunityRow = (row) => ({
+  id: row.id,
+  title: row.title,
+  orgName: row.org_name,
+  opportunityType: row.opportunity_type,
+  location: row.location,
+  skills: normalizeList(row.skills_json),
+  applyUrl: row.apply_url || "",
+  summary: row.summary,
+  createdAt: row.created_at,
+  creatorName: row.creator_name || "",
+  creatorEmail: row.creator_email || "",
+  applicationCount: Number(row.application_count || 0),
+});
+
+const mapAdminItemRow = (row) => ({
+  id: row.id,
+  title: row.title,
+  description: row.description,
+  category: row.category,
+  location: row.location,
+  price: Number(row.price || 0),
+  conditionStatus: row.condition_status,
+  pickupWindows: row.pickup_windows || "",
+  status: row.status,
+  images: normalizeList(row.images_json),
+  videos: normalizeList(row.videos_json),
+  deliveryOptions: normalizeList(row.delivery_options_json),
+  donationAvailable: !!row.donation_available,
+  sellerId: row.seller_id,
+  sellerName: row.seller_name || "",
+  sellerEmail: row.seller_email || "",
+  createdAt: row.created_at,
+});
+
 const mapConversationRow = (row, currentUserId) => {
   const isBuyer = Number(row.buyer_id) === Number(currentUserId);
   const otherLastSeen = isBuyer ? row.seller_last_seen : row.buyer_last_seen;
@@ -983,6 +1090,18 @@ const ensureSchema = async () => {
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT fk_donation_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS support_requests (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      user_id INT DEFAULT NULL,
+      full_name VARCHAR(120) NOT NULL,
+      email VARCHAR(190) NOT NULL,
+      category VARCHAR(80) NOT NULL,
+      page_url TEXT,
+      message TEXT NOT NULL,
+      status ENUM('open', 'reviewing', 'resolved') NOT NULL DEFAULT 'open',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_support_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS opportunities (
       id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
       title VARCHAR(180) NOT NULL,
@@ -994,6 +1113,21 @@ const ensureSchema = async () => {
       apply_url TEXT,
       created_by INT DEFAULT NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE IF NOT EXISTS opportunity_applications (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      opportunity_id INT NOT NULL,
+      applicant_id INT NOT NULL,
+      applicant_name VARCHAR(120) NOT NULL,
+      applicant_email VARCHAR(190) NOT NULL,
+      applicant_phone VARCHAR(40) DEFAULT NULL,
+      cover_message TEXT,
+      cv_url TEXT,
+      status ENUM('submitted', 'reviewed', 'rejected', 'replied') NOT NULL DEFAULT 'submitted',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_opp_app_opp FOREIGN KEY (opportunity_id) REFERENCES opportunities(id) ON DELETE CASCADE,
+      CONSTRAINT fk_opp_app_user FOREIGN KEY (applicant_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE KEY uniq_opp_applicant (opportunity_id, applicant_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     `CREATE TABLE IF NOT EXISTS memberships (
       id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -1122,11 +1256,16 @@ app.post(
   asyncHandler(async (req, res) => {
     if (!req.file) return res.status(400).json({ error: "File is required." });
     const mime = String(req.file.mimetype || "").toLowerCase();
-    const isImage = mime.startsWith("image/");
-    const isVideo = mime.startsWith("video/");
+    const ext = String(path.extname(req.file.originalname || "") || "").toLowerCase();
+    const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+    const allowedVideoTypes = new Set(["video/mp4", "video/webm", "video/quicktime"]);
+    const allowedImageExts = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif"]);
+    const allowedVideoExts = new Set([".mp4", ".webm", ".mov"]);
+    const isImage = allowedImageTypes.has(mime) && allowedImageExts.has(ext);
+    const isVideo = allowedVideoTypes.has(mime) && allowedVideoExts.has(ext);
     if (!isImage && !isVideo) {
       fs.unlink(req.file.path, () => {});
-      return res.status(400).json({ error: "Only image and video uploads are supported." });
+      return res.status(400).json({ error: "Only JPG, PNG, WebP, GIF, MP4, WebM, and MOV uploads are supported." });
     }
     res.json({ url: `/uploads/${req.file.filename}` });
   })
@@ -1134,6 +1273,7 @@ app.post(
 
 app.post(
   "/api/uploads/resume",
+  authRequired,
   upload.single("file"),
   asyncHandler(async (req, res) => {
     if (!req.file) return res.status(400).json({ error: "PDF file is required." });
@@ -1143,6 +1283,10 @@ app.post(
     if (!isPdf) {
       fs.unlink(req.file.path, () => {});
       return res.status(400).json({ error: "Resume must be a PDF file." });
+    }
+    if (Number(req.file.size || 0) > 10 * 1024 * 1024) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ error: "Resume PDF must be 10 MB or smaller." });
     }
     res.json({ url: `/uploads/${req.file.filename}` });
   })
@@ -1495,18 +1639,32 @@ app.get(
   authRequired,
   adminRequired,
   asyncHandler(async (_req, res) => {
-    const [userRows, postRows, activityRows, pendingRows] = await Promise.all([
+    const [userRows, postRows, activityRows, pendingRows, supportRows, applicationRows, reservationRows, deliveryRows, serviceRows, donationRows] = await Promise.all([
       pool.execute("SELECT COUNT(*) AS count FROM users"),
       pool.execute("SELECT COUNT(*) AS count FROM community_posts"),
       pool.execute("SELECT COUNT(*) AS count FROM user_activity_logs"),
       pool.execute("SELECT COUNT(*) AS count FROM users WHERE verification_status = 'pending'"),
+      pool.execute("SELECT COUNT(*) AS count FROM support_requests WHERE status <> 'resolved'"),
+      pool.execute("SELECT COUNT(*) AS count FROM opportunity_applications WHERE status = 'submitted'"),
+      pool.execute("SELECT COUNT(*) AS count FROM reservations WHERE status IN ('pending', 'confirmed')"),
+      pool.execute("SELECT COUNT(*) AS count FROM delivery_requests WHERE status IN ('requested', 'scheduled')"),
+      pool.execute("SELECT COUNT(*) AS count FROM service_requests WHERE status IN ('requested', 'in_progress')"),
+      pool.execute("SELECT COUNT(*) AS count FROM donations WHERE status IN ('submitted', 'accepted')"),
     ]);
+    const opsRequests =
+      Number(reservationRows[0][0]?.count || 0) +
+      Number(deliveryRows[0][0]?.count || 0) +
+      Number(serviceRows[0][0]?.count || 0) +
+      Number(donationRows[0][0]?.count || 0);
     res.json({
       totals: {
         users: Number(userRows[0][0]?.count || 0),
         posts: Number(postRows[0][0]?.count || 0),
         activity: Number(activityRows[0][0]?.count || 0),
         pendingVerifications: Number(pendingRows[0][0]?.count || 0),
+        supportRequests: Number(supportRows[0][0]?.count || 0),
+        applications: Number(applicationRows[0][0]?.count || 0),
+        opsRequests,
       },
     });
   })
@@ -1682,6 +1840,488 @@ app.post(
     await pool.execute("UPDATE users SET verification_status = ? WHERE id = ?", [nextStatus, userId]);
     await createNotification(userId, "verification", `Your student verification status is now ${nextStatus}.`);
     await logUserActivity(req, req.user.id, "admin_verification_update", "user", userId, { status: nextStatus });
+    res.json({ ok: true });
+  })
+);
+
+app.get(
+  "/api/admin/support-requests",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (_req, res) => {
+    const [rows] = await pool.execute(
+      `SELECT id, user_id, full_name, email, category, page_url, message, status, created_at
+       FROM support_requests
+       ORDER BY created_at DESC
+       LIMIT 200`
+    );
+    res.json({
+      requests: rows.map((row) => ({
+        id: row.id,
+        userId: row.user_id,
+        fullName: row.full_name,
+        email: row.email,
+        category: row.category,
+        pageUrl: row.page_url || "",
+        message: row.message,
+        status: row.status,
+        createdAt: row.created_at,
+      })),
+    });
+  })
+);
+
+app.post(
+  "/api/admin/support-requests/:id/status",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (req, res) => {
+    const requestId = Number(req.params.id);
+    const nextStatus = String(req.body.status || "");
+    if (!["open", "reviewing", "resolved"].includes(nextStatus)) {
+      return res.status(400).json({ error: "Unsupported support request status." });
+    }
+    const [rows] = await pool.execute("SELECT id, user_id, category FROM support_requests WHERE id = ? LIMIT 1", [requestId]);
+    const supportRequest = rows[0];
+    if (!supportRequest) return res.status(404).json({ error: "Support request not found." });
+    await pool.execute("UPDATE support_requests SET status = ? WHERE id = ?", [nextStatus, requestId]);
+    if (supportRequest.user_id) {
+      await createNotification(supportRequest.user_id, "support", `Your ${supportRequest.category} support request is now ${nextStatus}.`);
+    }
+    await logUserActivity(req, req.user.id, "admin_support_request_update", "support_request", requestId, { status: nextStatus });
+    res.json({ ok: true });
+  })
+);
+
+app.get(
+  "/api/admin/ops-requests",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (_req, res) => {
+    const [reservations, deliveries, services, donations] = await Promise.all([
+      pool.execute(
+        `SELECT
+           r.id,
+           r.status,
+           r.note,
+           r.pickup_time,
+           r.created_at,
+           i.title AS item_title,
+           u.full_name AS requester_name,
+           u.email AS requester_email
+         FROM reservations r
+         JOIN items i ON i.id = r.item_id
+         JOIN users u ON u.id = r.buyer_id
+         ORDER BY r.created_at DESC
+         LIMIT 200`
+      ),
+      pool.execute(
+        `SELECT
+           d.id,
+           d.status,
+           d.delivery_type,
+           d.from_location,
+           d.to_location,
+           d.notes,
+           d.created_at,
+           i.title AS item_title,
+           u.full_name AS requester_name,
+           u.email AS requester_email
+         FROM delivery_requests d
+         LEFT JOIN items i ON i.id = d.item_id
+         JOIN users u ON u.id = d.user_id
+         ORDER BY d.created_at DESC
+         LIMIT 200`
+      ),
+      pool.execute(
+        `SELECT
+           s.id,
+           s.status,
+           s.service_type,
+           s.notes,
+           s.created_at,
+           i.title AS item_title,
+           u.full_name AS requester_name,
+           u.email AS requester_email
+         FROM service_requests s
+         LEFT JOIN items i ON i.id = s.item_id
+         JOIN users u ON u.id = s.user_id
+         ORDER BY s.created_at DESC
+         LIMIT 200`
+      ),
+      pool.execute(
+        `SELECT
+           d.id,
+           d.status,
+           d.org_name,
+           d.notes,
+           d.created_at,
+           i.title AS item_title,
+           u.full_name AS requester_name,
+           u.email AS requester_email
+         FROM donations d
+         LEFT JOIN items i ON i.id = d.item_id
+         JOIN users u ON u.id = d.user_id
+         ORDER BY d.created_at DESC
+         LIMIT 200`
+      ),
+    ]);
+
+    const requests = []
+      .concat(
+        reservations[0].map((row) => ({
+          id: row.id,
+          type: "reservation",
+          status: row.status,
+          requesterName: row.requester_name,
+          requesterEmail: row.requester_email,
+          itemTitle: row.item_title || "",
+          requestedTime: row.pickup_time,
+          details: row.note || "",
+          createdAt: row.created_at,
+        })),
+        deliveries[0].map((row) => ({
+          id: row.id,
+          type: "delivery",
+          status: row.status,
+          requesterName: row.requester_name,
+          requesterEmail: row.requester_email,
+          itemTitle: row.item_title || "",
+          requestedTime: "",
+          details: `${row.delivery_type} · ${row.from_location} -> ${row.to_location}${row.notes ? ` · ${row.notes}` : ""}`,
+          createdAt: row.created_at,
+        })),
+        services[0].map((row) => ({
+          id: row.id,
+          type: "service",
+          status: row.status,
+          requesterName: row.requester_name,
+          requesterEmail: row.requester_email,
+          itemTitle: row.item_title || "",
+          requestedTime: "",
+          details: `${row.service_type}${row.notes ? ` · ${row.notes}` : ""}`,
+          createdAt: row.created_at,
+        })),
+        donations[0].map((row) => ({
+          id: row.id,
+          type: "donation",
+          status: row.status,
+          requesterName: row.requester_name,
+          requesterEmail: row.requester_email,
+          itemTitle: row.item_title || "",
+          requestedTime: "",
+          details: `${row.org_name}${row.notes ? ` · ${row.notes}` : ""}`,
+          createdAt: row.created_at,
+        }))
+      )
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 200);
+
+    res.json({ requests });
+  })
+);
+
+app.post(
+  "/api/admin/ops-requests/:type/:id/status",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (req, res) => {
+    const requestType = String(req.params.type || "");
+    const requestId = Number(req.params.id);
+    const status = String(req.body.status || "");
+    const config = {
+      reservation: {
+        table: "reservations",
+        userColumn: "buyer_id",
+        allowed: ["pending", "confirmed", "completed", "cancelled"],
+      },
+      delivery: {
+        table: "delivery_requests",
+        userColumn: "user_id",
+        allowed: ["requested", "scheduled", "completed"],
+      },
+      service: {
+        table: "service_requests",
+        userColumn: "user_id",
+        allowed: ["requested", "in_progress", "completed"],
+      },
+      donation: {
+        table: "donations",
+        userColumn: "user_id",
+        allowed: ["submitted", "accepted", "completed"],
+      },
+    }[requestType];
+    if (!config) {
+      return res.status(400).json({ error: "Unsupported operations request type." });
+    }
+    if (!config.allowed.includes(status)) {
+      return res.status(400).json({ error: "Unsupported operations request status." });
+    }
+
+    const [rows] = await pool.execute(
+      `SELECT id, ${config.userColumn} AS user_id FROM ${config.table} WHERE id = ? LIMIT 1`,
+      [requestId]
+    );
+    const request = rows[0];
+    if (!request) return res.status(404).json({ error: "Operations request not found." });
+
+    await pool.execute(`UPDATE ${config.table} SET status = ? WHERE id = ?`, [status, requestId]);
+    if (request.user_id) {
+      await createNotification(request.user_id, requestType, `${requestType} request status updated to ${status}.`);
+    }
+    await logUserActivity(req, req.user.id, "admin_ops_request_update", requestType, requestId, { status });
+    res.json({ ok: true });
+  })
+);
+
+app.get(
+  "/api/admin/items",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (req, res) => {
+    const query = cleanText(req.query.q || "", 120);
+    const filters = [];
+    const params = [];
+    if (query) {
+      filters.push("(i.title LIKE ? OR i.description LIKE ? OR u.full_name LIKE ? OR u.email LIKE ?)");
+      params.push(`%${query}%`, `%${query}%`, `%${query}%`, `%${query}%`);
+    }
+    const whereClause = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
+    const [rows] = await pool.execute(
+      `SELECT
+         i.*,
+         u.full_name AS seller_name,
+         u.email AS seller_email
+       FROM items i
+       JOIN users u ON u.id = i.seller_id
+       ${whereClause}
+       ORDER BY i.created_at DESC
+       LIMIT 200`,
+      params
+    );
+    res.json({ items: rows.map(mapAdminItemRow) });
+  })
+);
+
+app.patch(
+  "/api/admin/items/:id",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (req, res) => {
+    const itemId = Number(req.params.id);
+    const [rows] = await pool.execute("SELECT * FROM items WHERE id = ? LIMIT 1", [itemId]);
+    const existing = rows[0];
+    if (!existing) return res.status(404).json({ error: "Item not found." });
+
+    const title = cleanText(req.body.title, 180) || existing.title;
+    const description = cleanText(req.body.description, 4000) || existing.description;
+    const category = cleanText(req.body.category, 80) || existing.category;
+    const location = cleanText(req.body.location, 180) || existing.location;
+    const price = req.body.price == null || req.body.price === "" ? Number(existing.price) : Number(req.body.price);
+    const conditionStatus = cleanText(req.body.conditionStatus, 80) || existing.condition_status;
+    const pickupWindows = req.body.pickupWindows == null ? existing.pickup_windows || "" : cleanText(req.body.pickupWindows, 1000);
+    const status = ["available", "reserved", "donated", "completed"].includes(String(req.body.status || ""))
+      ? String(req.body.status)
+      : existing.status;
+    if (!title || !description || !category || !location || !conditionStatus || Number.isNaN(price) || price < 0) {
+      return res.status(400).json({ error: "Invalid item payload." });
+    }
+
+    const media = validateItemMedia({
+      images: req.body.images == null ? normalizeList(existing.images_json) : req.body.images,
+      videos: req.body.videos == null ? normalizeList(existing.videos_json) : req.body.videos,
+    });
+    const deliveryOptions = req.body.deliveryOptions == null ? normalizeList(existing.delivery_options_json) : normalizeList(req.body.deliveryOptions);
+    const donationAvailable = req.body.donationAvailable == null ? !!existing.donation_available : !!req.body.donationAvailable;
+
+    await pool.execute(
+      `UPDATE items
+       SET title = ?, description = ?, category = ?, location = ?, price = ?, condition_status = ?,
+           pickup_windows = ?, images_json = ?, videos_json = ?, delivery_options_json = ?, donation_available = ?, status = ?
+       WHERE id = ?`,
+      [
+        title,
+        description,
+        category,
+        location,
+        price,
+        conditionStatus,
+        pickupWindows,
+        JSON.stringify(media.images),
+        JSON.stringify(media.videos),
+        JSON.stringify(deliveryOptions),
+        donationAvailable ? 1 : 0,
+        status,
+        itemId,
+      ]
+    );
+    await logUserActivity(req, req.user.id, "admin_item_update", "item", itemId, { status });
+    res.json({ ok: true });
+  })
+);
+
+app.delete(
+  "/api/admin/items/:id",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (req, res) => {
+    const itemId = Number(req.params.id);
+    const [rows] = await pool.execute("SELECT id, title FROM items WHERE id = ? LIMIT 1", [itemId]);
+    const item = rows[0];
+    if (!item) return res.status(404).json({ error: "Item not found." });
+    await pool.execute("DELETE FROM items WHERE id = ?", [itemId]);
+    await logUserActivity(req, req.user.id, "admin_item_delete", "item", itemId, { title: item.title });
+    res.json({ ok: true });
+  })
+);
+
+app.get(
+  "/api/admin/opportunities",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (_req, res) => {
+    const [rows] = await pool.execute(
+      `SELECT
+         o.*,
+         u.full_name AS creator_name,
+         u.email AS creator_email,
+         COUNT(a.id) AS application_count
+       FROM opportunities o
+       LEFT JOIN users u ON u.id = o.created_by
+       LEFT JOIN opportunity_applications a ON a.opportunity_id = o.id
+       GROUP BY o.id, u.full_name, u.email
+       ORDER BY o.created_at DESC`
+    );
+    res.json({ opportunities: rows.map(mapAdminOpportunityRow) });
+  })
+);
+
+app.patch(
+  "/api/admin/opportunities/:id",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (req, res) => {
+    const opportunityId = Number(req.params.id);
+    const [rows] = await pool.execute("SELECT * FROM opportunities WHERE id = ? LIMIT 1", [opportunityId]);
+    const existing = rows[0];
+    if (!existing) return res.status(404).json({ error: "Opportunity not found." });
+
+    const normalizedTitle = cleanText(req.body.title, 180) || existing.title;
+    const normalizedOrgName = cleanText(req.body.orgName, 180) || existing.org_name;
+    const normalizedLocation = cleanText(req.body.location, 180) || existing.location;
+    const normalizedOpportunityType = cleanText(req.body.opportunityType, 40).toLowerCase() || existing.opportunity_type;
+    const normalizedSummary = cleanText(req.body.summary, 4000) || existing.summary;
+    if (!normalizedTitle || !normalizedOrgName || !normalizedLocation || !normalizedSummary || !OPPORTUNITY_TYPES.has(normalizedOpportunityType)) {
+      return res.status(400).json({ error: "Invalid opportunity payload." });
+    }
+
+    let normalizedApplyUrl = existing.apply_url || "";
+    if (req.body.applyUrl != null) {
+      try {
+        normalizedApplyUrl = normalizeHttpUrl(req.body.applyUrl);
+      } catch (error) {
+        return res.status(400).json({ error: error.message });
+      }
+    }
+
+    await pool.execute(
+      `UPDATE opportunities
+       SET title = ?, org_name = ?, opportunity_type = ?, location = ?, skills_json = ?, summary = ?, apply_url = ?
+       WHERE id = ?`,
+      [
+        normalizedTitle,
+        normalizedOrgName,
+        normalizedOpportunityType,
+        normalizedLocation,
+        JSON.stringify(req.body.skills == null ? normalizeList(existing.skills_json) : normalizeOpportunitySkills(req.body.skills)),
+        normalizedSummary,
+        normalizedApplyUrl,
+        opportunityId,
+      ]
+    );
+    await logUserActivity(req, req.user.id, "admin_opportunity_update", "opportunity", opportunityId, { type: normalizedOpportunityType });
+    res.json({ ok: true });
+  })
+);
+
+app.delete(
+  "/api/admin/opportunities/:id",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (req, res) => {
+    const opportunityId = Number(req.params.id);
+    const [rows] = await pool.execute("SELECT id, title FROM opportunities WHERE id = ? LIMIT 1", [opportunityId]);
+    const opportunity = rows[0];
+    if (!opportunity) return res.status(404).json({ error: "Opportunity not found." });
+    await pool.execute("DELETE FROM opportunities WHERE id = ?", [opportunityId]);
+    await logUserActivity(req, req.user.id, "admin_opportunity_delete", "opportunity", opportunityId, { title: opportunity.title });
+    res.json({ ok: true });
+  })
+);
+
+app.get(
+  "/api/admin/opportunity-applications",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (_req, res) => {
+    const [rows] = await pool.execute(
+      `SELECT
+         a.id,
+         a.status,
+         a.applicant_name,
+         a.applicant_email,
+         a.applicant_phone,
+         a.cover_message,
+         a.cv_url,
+         a.created_at,
+         o.title AS opportunity_title,
+         o.org_name
+       FROM opportunity_applications a
+       JOIN opportunities o ON o.id = a.opportunity_id
+       ORDER BY a.created_at DESC
+       LIMIT 200`
+    );
+    res.json({
+      applications: rows.map((row) => ({
+        id: row.id,
+        status: row.status,
+        applicantName: row.applicant_name,
+        applicantEmail: row.applicant_email,
+        applicantPhone: row.applicant_phone || "",
+        coverMessage: row.cover_message || "",
+        cvUrl: row.cv_url || "",
+        createdAt: row.created_at,
+        opportunityTitle: row.opportunity_title,
+        orgName: row.org_name,
+      })),
+    });
+  })
+);
+
+app.post(
+  "/api/admin/opportunity-applications/:id/status",
+  authRequired,
+  adminRequired,
+  asyncHandler(async (req, res) => {
+    const applicationId = Number(req.params.id);
+    const nextStatus = String(req.body.status || "");
+    if (!["reviewed", "rejected", "replied"].includes(nextStatus)) {
+      return res.status(400).json({ error: "Unsupported application status." });
+    }
+    const [rows] = await pool.execute(
+      "SELECT id, applicant_id, opportunity_id FROM opportunity_applications WHERE id = ? LIMIT 1",
+      [applicationId]
+    );
+    const application = rows[0];
+    if (!application) return res.status(404).json({ error: "Application not found." });
+    await pool.execute("UPDATE opportunity_applications SET status = ? WHERE id = ?", [nextStatus, applicationId]);
+    if (application.applicant_id) {
+      await createNotification(application.applicant_id, "job-application", `Your opportunity application is now ${nextStatus}.`);
+    }
+    await logUserActivity(req, req.user.id, "admin_opportunity_application_update", "opportunity_application", applicationId, {
+      status: nextStatus,
+      opportunityId: application.opportunity_id,
+    });
     res.json({ ok: true });
   })
 );
@@ -2260,6 +2900,48 @@ app.post(
   })
 );
 
+app.post(
+  "/api/support",
+  asyncHandler(async (req, res) => {
+    const fullName = cleanText(req.body.fullName, 120);
+    const email = String(req.body.email || "").trim().toLowerCase();
+    const category = cleanText(req.body.category, 80).toLowerCase() || "general";
+    const pageUrl = cleanText(req.body.pageUrl, 2000);
+    const message = cleanText(req.body.message, 4000);
+    if (!fullName || !email || !message) {
+      return res.status(400).json({ error: "Full name, email, and message are required." });
+    }
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ error: "A valid email address is required." });
+    }
+    if (!SUPPORT_REQUEST_CATEGORIES.has(category)) {
+      return res.status(400).json({ error: "Unsupported support category." });
+    }
+
+    let userId = null;
+    const header = req.headers.authorization || "";
+    if (header.startsWith("Bearer ")) {
+      try {
+        const payload = jwt.verify(header.slice(7), JWT_SECRET);
+        userId = Number(payload.id) || null;
+      } catch {
+        userId = null;
+      }
+    }
+
+    const [result] = await pool.execute(
+      `INSERT INTO support_requests (user_id, full_name, email, category, page_url, message)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [userId, fullName, email, category, pageUrl || "", message]
+    );
+    await notifyAdmins("support", `New ${category} support request from ${fullName}.`, userId);
+    if (userId) {
+      await logUserActivity(req, userId, "support_request_create", "support_request", result.insertId, { category });
+    }
+    res.status(201).json({ ok: true, id: result.insertId, supportEmail: SUPPORT_EMAIL });
+  })
+);
+
 app.get(
   "/api/opportunities",
   asyncHandler(async (req, res) => {
@@ -2282,7 +2964,7 @@ app.get(
       `SELECT * FROM opportunities WHERE ${filters.join(" AND ")} ORDER BY created_at DESC`,
       params
     );
-    res.json({ opportunities: rows.map((row) => ({ ...row, skills: normalizeList(row.skills_json) })) });
+    res.json({ opportunities: rows.map(mapPublicOpportunityRow) });
   })
 );
 
@@ -2347,17 +3029,106 @@ app.get(
 app.post(
   "/api/opportunities",
   authRequired,
+  adminRequired,
   asyncHandler(async (req, res) => {
     const { title, orgName, opportunityType, location, skills, summary, applyUrl } = req.body;
-    if (!title || !orgName || !opportunityType || !location || !summary) {
+    const normalizedTitle = cleanText(title, 180);
+    const normalizedOrgName = cleanText(orgName, 180);
+    const normalizedLocation = cleanText(location, 180);
+    const normalizedOpportunityType = cleanText(opportunityType, 40).toLowerCase();
+    const normalizedSummary = cleanText(summary, 4000);
+    if (!normalizedTitle || !normalizedOrgName || !normalizedOpportunityType || !normalizedLocation || !normalizedSummary) {
       return res.status(400).json({ error: "Missing required opportunity fields." });
+    }
+    if (!OPPORTUNITY_TYPES.has(normalizedOpportunityType)) {
+      return res.status(400).json({ error: "Unsupported opportunity type." });
+    }
+    let normalizedApplyUrl = "";
+    try {
+      normalizedApplyUrl = normalizeHttpUrl(applyUrl);
+    } catch (error) {
+      return res.status(400).json({ error: error.message });
     }
     const [result] = await pool.execute(
       `INSERT INTO opportunities
         (title, org_name, opportunity_type, location, skills_json, summary, apply_url, created_by)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [title, orgName, opportunityType, location, JSON.stringify(normalizeList(skills)), summary, applyUrl || "", req.user.id]
+      [
+        normalizedTitle,
+        normalizedOrgName,
+        normalizedOpportunityType,
+        normalizedLocation,
+        JSON.stringify(normalizeOpportunitySkills(skills)),
+        normalizedSummary,
+        normalizedApplyUrl,
+        req.user.id,
+      ]
     );
+    await logUserActivity(req, req.user.id, "opportunity_create", "opportunity", result.insertId, {
+      organization: normalizedOrgName,
+      type: normalizedOpportunityType,
+    });
+    res.status(201).json({ id: result.insertId });
+  })
+);
+
+app.post(
+  "/api/opportunity-applications",
+  authRequired,
+  asyncHandler(async (req, res) => {
+    const opportunityId = Number(req.body.opportunityId);
+    const applicantName = cleanText(req.body.applicantName, 120);
+    const applicantEmail = String(req.body.applicantEmail || "").trim().toLowerCase();
+    const applicantPhone = cleanText(req.body.applicantPhone, 40);
+    const coverMessage = cleanText(req.body.coverMessage, 4000);
+    if (!opportunityId || !applicantName || !applicantEmail) {
+      return res.status(400).json({ error: "Opportunity, name, and email are required." });
+    }
+    if (!isValidEmail(applicantEmail)) {
+      return res.status(400).json({ error: "A valid email address is required." });
+    }
+    let cvUrl = "";
+    try {
+      cvUrl = normalizeUploadPath(req.body.cvUrl);
+    } catch (error) {
+      return res.status(400).json({ error: error.message });
+    }
+    if (cvUrl && path.extname(cvUrl).toLowerCase() !== ".pdf") {
+      return res.status(400).json({ error: "Resume must be an uploaded PDF file." });
+    }
+
+    const [opportunities] = await pool.execute(
+      "SELECT id, title, created_by FROM opportunities WHERE id = ? LIMIT 1",
+      [opportunityId]
+    );
+    const opportunity = opportunities[0];
+    if (!opportunity) {
+      return res.status(404).json({ error: "Opportunity not found." });
+    }
+
+    const [existing] = await pool.execute(
+      "SELECT id FROM opportunity_applications WHERE opportunity_id = ? AND applicant_id = ? LIMIT 1",
+      [opportunityId, req.user.id]
+    );
+    if (existing[0]) {
+      return res.status(409).json({ error: "You have already applied to this opportunity." });
+    }
+
+    const [result] = await pool.execute(
+      `INSERT INTO opportunity_applications
+        (opportunity_id, applicant_id, applicant_name, applicant_email, applicant_phone, cover_message, cv_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [opportunityId, req.user.id, applicantName, applicantEmail, applicantPhone || "", coverMessage || "", cvUrl || ""]
+    );
+
+    if (opportunity.created_by) {
+      await createNotification(opportunity.created_by, "job-application", `New application for "${opportunity.title}" from ${applicantName}.`);
+    } else {
+      await notifyAdmins("job-application", `New application for "${opportunity.title}" from ${applicantName}.`, req.user.id);
+    }
+    await logUserActivity(req, req.user.id, "opportunity_apply", "opportunity", opportunityId, {
+      hasCv: !!cvUrl,
+    });
     res.status(201).json({ id: result.insertId });
   })
 );
@@ -2375,9 +3146,14 @@ const pageRoutes = {
   "/dashboard": "dashboard.html",
   "/sell": "sell.html",
   "/services": "services.html",
+  "/help": "help.html",
   "/opportunities": "opportunities.html",
   "/seek": "opportunities.html",
+  "/privacy": "privacy.html",
   "/seller": "seller.html",
+  "/terms": "terms.html",
+  "/trust": "trust.html",
+  "/glmi712-reflection": "glmi712-reflection.html",
   "/admin": "admin.html",
   "/admin/verifications": "admin-verifications.html",
 };
@@ -2424,7 +3200,7 @@ app.get("/api/jobs", (req, res) => {
   });
 });
 
-app.post("/api/jobs/match", asyncHandler(async (req, res) => {
+app.post("/api/jobs/match", authRequired, asyncHandler(async (req, res) => {
   const cvUrl = cleanText(req.body.cvUrl, 2000);
   if (!cvUrl || !cvUrl.startsWith("/uploads/")) {
     return res.status(400).json({ error: "Valid uploaded resume is required." });
@@ -2505,6 +3281,12 @@ app.get("*", (_req, res) => {
 
 app.use((err, _req, res, _next) => {
   console.error(err);
+  if (err instanceof multer.MulterError) {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res.status(400).json({ error: "Uploaded file is too large." });
+    }
+    return res.status(400).json({ error: err.message || "Upload failed." });
+  }
   res.status(500).json({ error: err.message || "Internal server error." });
 });
 
