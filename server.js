@@ -75,7 +75,7 @@ app.use(cors());
 app.use((_req, res, next) => {
   res.setHeader(
     "Content-Security-Policy",
-    "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+    "default-src 'self'; img-src 'self' data: blob: https://images.unsplash.com https://plus.unsplash.com; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
   );
   res.setHeader("Permissions-Policy", "camera=(), geolocation=(), microphone=()");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
