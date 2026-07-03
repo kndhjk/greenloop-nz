@@ -1,8 +1,8 @@
 # GreenLoop NZ
 
-Live prototype: [http://4.155.227.179:5001](http://4.155.227.179:5001)
+Live prototype: [https://4.155.227.179/](https://4.155.227.179/)
 
-Note: the live app on port `5001` is currently HTTP-only. `https://4.155.227.179:5001/` will fail until TLS is configured in front of that port.
+Public HTTPS now terminates on the standard `443` entrypoint and proxies to the GreenLoop app running on local port `5001`.
 
 GreenLoop NZ is a student-first circular commerce MVP for New Zealand campuses. The product combines a second-hand marketplace, reservation and chat flows, lightweight operations support, campus opportunities, external NZ jobs discovery, resume matching, and admin moderation in one Node.js application.
 
